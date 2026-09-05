@@ -1,5 +1,7 @@
-const CACHE_NAME = 'lerntracker-pwa-v5';
+// Intelligenter Service Worker mit Zero-Maintenance Auto-Update
+const CACHE_NAME = 'lerntracker-pwa-v-auto';
 
+// Unveränderliche externe CDN-Bibliotheken (bleiben dauerhaft im Offline-Cache)
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -10,43 +12,54 @@ const ASSETS_TO_CACHE = [
   'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js'
 ];
 
-// Installation: Speichert jede Datei einzeln, damit kein Einzelfehler die Installation stoppt
+// Installation: Lädt CDN-Bibliotheken vor und aktiviert sich sofort
 self.addEventListener('install', (event) => {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then(async (cache) => {
       for (const url of ASSETS_TO_CACHE) {
         try {
           await cache.add(url);
         } catch (err) {
-          console.warn('Konnte Datei nicht vorab cachen:', url);
+          console.warn('Asset konnte nicht vorab geladen werden:', url);
         }
       }
-    }).then(() => self.skipWaiting())
+    })
   );
 });
 
+// Aktivierung: Übernimmt sofort die Kontrolle über alle offenen Fenster
 self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys().then((keys) => {
-      return Promise.all(
-        keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k))
-      );
-    }).then(() => self.clients.claim())
-  );
+  event.waitUntil(self.clients.claim());
 });
 
+// Intelligente Abruf-Strategie:
 self.addEventListener('fetch', (event) => {
-  // Bei Seitenaufrufen (HTML) immer den Cache oder index.html ausliefern
-  if (event.request.mode === 'navigate') {
+  // 1. Navigation / HTML (Deine App-Oberfläche):
+  // STRATEGIE: Network-First!
+  // Wenn Internet da ist: IMMER die neueste Version von Vercel laden & Cache direkt erneuern.
+  // Wenn offline: Sofort die Version aus dem lokalen Cache anzeigen.
+  if (event.request.mode === 'navigate' || event.request.destination === 'document') {
     event.respondWith(
-      caches.match(event.request).then((res) => {
-        return res || caches.match('./index.html') || caches.match('./');
-      }).catch(() => caches.match('./index.html'))
+      fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const clone = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          }
+          return networkResponse;
+        })
+        .catch(() => {
+          return caches.match(event.request).then((cached) => {
+            return cached || caches.match('./index.html') || caches.match('./');
+          });
+        })
     );
     return;
   }
 
-  // Für alle anderen Dateien (CSS, Skripte, Icons)
+  // 2. Bibliotheken, Icons & Fonts:
+  // STRATEGIE: Cache-First (schnellster Start) mit automatischem Nachladen
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       if (cachedResponse) return cachedResponse;
