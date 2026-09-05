@@ -1,0 +1,2179 @@
+<!DOCTYPE html>
+<html lang="de" class="h-full overflow-hidden">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Lernfortschritts-Tracker</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Bibliotheken für Excel und PDF Export -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+
+  <style>
+    * {
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
+    
+    /* Nahtlose Rand-zu-Rand-Skalierung ohne Freiflächen */
+    #appWrapper {
+      transform-origin: top left;
+      transition: transform 0.15s ease, width 0.15s ease, height 0.15s ease;
+    }
+    
+    /* Flexbox-Gefüge: Tabelle füllt immer die gesamte Resthöhe ohne Leerfläche */
+    .table-container {
+      flex: 1 1 0%;
+      min-height: 0;
+      height: 100%;
+    }
+
+    th.sticky-col, td.sticky-col {
+      position: sticky;
+      left: 0;
+      z-index: 10;
+    }
+    th.sticky-col {
+      z-index: 20;
+    }
+    tr:hover td.sticky-col {
+      background-color: #f8fafc;
+    }
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+    /* Smartboard Modus Akzente */
+    body.student-mode-active {
+      background-color: #f8fafc;
+    }
+    body.student-mode-active .teacher-only {
+      display: none !important;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 flex flex-col h-full overflow-hidden font-sans select-none" id="appBody" style="height: 100vh; height: 100dvh;">
+
+  <!-- Haupt-Applikationswrapper für Vollbild-Zoom -->
+  <div id="appWrapper" class="flex flex-col h-full w-full">
+    
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs shrink-0 transition-all duration-200" id="mainHeader">
+      
+      <!-- Normaler, voller Header (volle Breite ohne künstliche Begrenzung) -->
+      <div id="fullHeaderBar" class="w-full px-4 sm:px-6 py-2.5 flex flex-wrap items-center justify-between gap-2.5 transition-all duration-200">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-base shadow-sm">
+            <i class="fa-solid fa-graduation-cap"></i>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <h1 class="font-bold text-slate-900 leading-tight text-sm sm:text-base">Lernfortschritts-Tracker</h1>
+              <!-- Versionsbadge mit Klickfunktion für Changelog -->
+              <button onclick="openModal('changelogModal')" class="text-[11px] font-mono font-bold px-2 py-0.5 rounded-lg bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border border-emerald-300 transition cursor-pointer flex items-center gap-1 shadow-2xs" title="Versionshinweise und Changelog ansehen">
+                <span>v1.4.7</span>
+                <i class="fa-solid fa-circle-info text-[9px] text-emerald-600"></i>
+              </button>
+              <span id="studentModeBadge" class="hidden text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md bg-indigo-100 text-indigo-800 border border-indigo-200">
+                <i class="fa-solid fa-chalkboard-user mr-1"></i> Smartboard-Modus
+              </span>
+            </div>
+            <p class="text-[11px] text-slate-500" id="storageStatusText">Lokale IndexedDB aktiv</p>
+          </div>
+        </div>
+
+        <!-- Schnellaktionen Leiste mit Buttons -->
+        <div class="flex items-center gap-2 flex-wrap">
+          <!-- Skalierung / Zoom (A- / A+) -->
+          <div class="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700">
+            <button onclick="adjustZoom(-0.1)" class="px-2 py-1 hover:bg-white rounded-lg transition" title="Verkleinern (A-)">
+              <i class="fa-solid fa-magnifying-glass-minus"></i>
+            </button>
+            <button onclick="resetZoom()" id="zoomLabel" class="px-2 py-1 hover:bg-white rounded-lg transition font-mono" title="Zoom zurücksetzen">
+              100%
+            </button>
+            <button onclick="adjustZoom(0.1)" class="px-2 py-1 hover:bg-white rounded-lg transition" title="Vergrößern für Smartboard (A+)">
+              <i class="fa-solid fa-magnifying-glass-plus"></i>
+            </button>
+          </div>
+
+          <!-- Smartboard-Modus Schalter -->
+          <button id="toggleStudentModeBtn" onclick="toggleStudentMode()" class="px-3 py-1.5 rounded-xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-900 text-xs font-semibold flex items-center gap-1.5 transition shadow-xs" title="Datenschutz-Modus für Präsentation am Beamer/Smartboard">
+            <i class="fa-solid fa-chalkboard-user text-indigo-600"></i>
+            <span id="studentModeBtnText">Schülermodus</span>
+          </button>
+
+          <!-- Ansichtsumschalter (Tabelle / Fokus) -->
+          <div class="bg-slate-100 p-1 rounded-xl flex gap-1 border border-slate-200">
+            <button id="viewTableBtn" onclick="switchView('table')" class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-white text-slate-800 shadow-xs transition">
+              <i class="fa-solid fa-table-cells mr-1"></i> Tabelle
+            </button>
+            <button id="viewCardBtn" onclick="switchView('card')" class="px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 transition">
+              <i class="fa-solid fa-address-card mr-1"></i> Fokus
+            </button>
+          </div>
+
+          <!-- Status Konfiguration -->
+          <button onclick="openModal('statusModal')" class="teacher-only p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium transition shadow-xs" title="Status-Stufen anpassen">
+            <i class="fa-solid fa-sliders"></i>
+          </button>
+
+          <!-- Zentrales Export und Import Menü -->
+          <button onclick="openModal('exportModal')" class="teacher-only px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold flex items-center gap-1.5 transition shadow-xs" title="Daten exportieren oder einspielen">
+            <i class="fa-solid fa-file-export text-emerald-400"></i>
+            <span>Export & Import</span>
+          </button>
+
+          <!-- 1-Klick Kompaktmodus (Alles einklappen) -->
+          <button onclick="toggleAllBars()" id="toggleAllBarsBtn" class="px-2.5 py-1.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition shadow-xs" title="Leisten einklappen für maximale Tabellenhöhe">
+            <i class="fa-solid fa-arrows-up-to-line text-slate-500"></i>
+            <span class="hidden xl:inline">Kompakt</span>
+          </button>
+
+          <!-- Einzeltaste: Nur oberen Header einklappen -->
+          <button onclick="toggleHeaderCollapse()" class="p-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600 text-xs transition shadow-xs" title="Kopfbereich einklappen">
+            <i class="fa-solid fa-chevron-up"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Eingeklappte Mini-Kopfzeile -->
+      <div id="compactHeaderBar" class="hidden w-full px-4 sm:px-6 py-1.5 flex items-center justify-between gap-2 text-xs bg-slate-50/95 border-b border-slate-200/80">
+        <div class="flex items-center gap-2 min-w-0">
+          <i class="fa-solid fa-graduation-cap text-emerald-600 shrink-0"></i>
+          <span class="font-bold text-slate-900 truncate" id="compactCourseTitle">Kurs</span>
+          <button onclick="openModal('changelogModal')" class="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 border border-emerald-300 shrink-0" title="Changelog">
+            v1.4.7
+          </button>
+          <span id="compactStudentModeBadge" class="hidden text-[10px] font-bold px-1.5 py-0.2 rounded bg-indigo-100 text-indigo-800 shrink-0">
+            Smartboard
+          </span>
+        </div>
+
+        <div class="flex items-center gap-1.5 shrink-0">
+          <!-- Mini Zoom im Kompaktmodus -->
+          <div class="flex items-center bg-white px-1.5 py-0.5 rounded-lg border border-slate-200 text-[11px] font-mono">
+            <button onclick="adjustZoom(-0.1)" class="px-1 hover:text-emerald-600" title="A-"><i class="fa-solid fa-minus"></i></button>
+            <span id="compactZoomLabel" class="px-1 font-semibold text-slate-700">100%</span>
+            <button onclick="adjustZoom(0.1)" class="px-1 hover:text-emerald-600" title="A+"><i class="fa-solid fa-plus"></i></button>
+          </div>
+
+          <!-- Mini Schülermodus Schalter -->
+          <button onclick="toggleStudentMode()" class="px-2 py-0.5 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-900 text-[11px] font-semibold flex items-center gap-1" title="Smartboard-Modus umschalten">
+            <i class="fa-solid fa-chalkboard-user text-indigo-600"></i>
+          </button>
+
+          <!-- Ausklapp-Knopf für Header -->
+          <button onclick="toggleHeaderCollapse()" class="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[11px] flex items-center gap-1 shadow-2xs transition">
+            <i class="fa-solid fa-chevron-down"></i>
+            <span>Menü ausklappen</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Kurse Reiter (Überlappungssicher mit shrink-0 und flex-nowrap) -->
+      <div id="courseTabsBar" class="w-full px-4 sm:px-6 flex flex-nowrap items-center gap-2 overflow-x-auto pt-1.5 pb-1.5 border-t border-slate-100 transition-all duration-200">
+        <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider shrink-0 mr-1 flex items-center">
+          <i class="fa-solid fa-folder-open text-emerald-600 mr-1.5"></i> Kurse:
+        </span>
+        <div id="courseTabsList" class="flex items-center gap-1.5 shrink-0">
+          <!-- Dynamische Reiter für Kurse -->
+        </div>
+        <button onclick="openModal('addCourseModal')" class="teacher-only px-2.5 py-1 rounded-lg border border-dashed border-slate-300 text-slate-600 hover:border-emerald-500 hover:text-emerald-600 text-xs font-medium flex items-center gap-1 shrink-0 whitespace-nowrap transition">
+          <i class="fa-solid fa-plus text-[10px]"></i> Kurs anlegen
+        </button>
+      </div>
+    </header>
+
+    <!-- Hauptarbeitsbereich: Füllt die gesamte Bildschirmbreite -->
+    <main class="flex-1 w-full p-3 sm:p-4 flex flex-col gap-3 min-h-0 overflow-hidden">
+
+      <!-- FLÄCHE 2: DIE AKTIONSLEISTE & BUTTONS (EINKLAPPBAR) -->
+      <div id="actionBarWrapper" class="shrink-0 transition-all duration-200">
+        <!-- Volle Aktionsleiste -->
+        <div id="fullActionBar" class="bg-white p-3 rounded-2xl border border-slate-200 shadow-xs flex flex-wrap items-center justify-between gap-2.5 transition-all duration-200">
+          <div class="teacher-only flex items-center gap-2 flex-wrap">
+            <button onclick="openModal('addStudentModal')" class="px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold flex items-center gap-1.5 transition">
+              <i class="fa-solid fa-user-plus"></i> Kind hinzufügen
+            </button>
+            <button onclick="openModal('addTaskModal')" class="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center gap-1.5 transition">
+              <i class="fa-solid fa-plus"></i> Material
+            </button>
+            <!-- 1-Klick Schalter: Alle Notizen ein-/ausklappen -->
+            <button id="toggleNotesBtn" onclick="toggleAllNotes()" class="px-3 py-1.5 rounded-xl border border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-semibold flex items-center gap-1.5 transition" title="Alle Notizen in der Tabelle auf einen Klick ein- oder ausblenden">
+              <i class="fa-solid fa-note-sticky text-amber-600"></i>
+              <span id="toggleNotesBtnText">Notizen einblenden</span>
+            </button>
+          </div>
+
+          <!-- Filter, Sortierung, Niveaustufen und Suchleiste -->
+          <div class="flex items-center gap-2 flex-wrap w-full sm:w-auto">
+            <!-- Sortierung nach Vor- oder Nachname oder Eigene Reihenfolge -->
+            <div class="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-xl">
+              <i class="fa-solid fa-arrow-down-a-z text-slate-400 text-xs"></i>
+              <select id="sortSelect" onchange="changeSort(this.value)" class="bg-transparent text-xs font-medium text-slate-700 focus:outline-none cursor-pointer">
+                <option value="last">Nachname (A-Z)</option>
+                <option value="first">Vorname (A-Z)</option>
+                <option value="custom">Eigene Reihenfolge</option>
+              </select>
+            </div>
+
+            <!-- Niveaustufen Legende im Smartboard-Modus -->
+            <div id="levelLegend" class="hidden sm:flex items-center gap-1.5 text-[11px] font-medium text-slate-500 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-xl">
+              <span>Stufen:</span>
+              <span class="text-amber-700" title="Grundlegende Standards">🏕️ Basis</span>
+              <span class="text-blue-700" title="Regelstandard & Transfer">🧗 Aufsteiger</span>
+              <span class="text-emerald-700" title="Vertiefung & Experte">🏔️ Gipfel</span>
+            </div>
+
+            <div class="relative flex-1 sm:w-48">
+              <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+              <input type="text" id="searchInput" oninput="handleSearch(this.value)" placeholder="Suchen..." class="w-full pl-8 pr-3 py-1 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500">
+            </div>
+
+            <!-- Einklapp-Knopf für Aktionsleiste -->
+            <button onclick="toggleActionBarCollapse()" class="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl text-xs transition" title="Aktionsleiste einklappen">
+              <i class="fa-solid fa-chevron-up"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Eingeklappter Zustand der Aktionsleiste -->
+        <div id="compactActionBar" class="hidden bg-slate-100/80 hover:bg-slate-100 border border-slate-200/80 px-3 py-1.5 rounded-xl flex items-center justify-between text-xs text-slate-500 cursor-pointer transition" onclick="toggleActionBarCollapse()">
+          <div class="flex items-center gap-2">
+            <i class="fa-solid fa-sliders text-slate-400"></i>
+            <span class="font-medium text-[11px] text-slate-600">Aktionen & Filter eingeklappt</span>
+            <span id="compactSearchBadge" class="hidden text-[10px] px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 font-semibold">Filter aktiv</span>
+          </div>
+          <div class="flex items-center gap-1 text-[11px] text-slate-600 font-semibold">
+            <span>Aktionen ausklappen</span>
+            <i class="fa-solid fa-chevron-down text-slate-400"></i>
+          </div>
+        </div>
+      </div>
+
+      <!-- ANSICHT 1: Tabelle -->
+      <div id="tableView" class="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden flex-1 flex flex-col min-h-0 w-full">
+        <div class="table-container overflow-auto flex-1 min-h-0 w-full">
+          <table class="w-full text-left border-collapse" id="matrixTable">
+            <thead class="sticky top-0 z-20 bg-slate-50 shadow-2xs">
+              <tr class="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600" id="tableHeaderRow">
+              </tr>
+            </thead>
+            <tbody id="tableBody" class="divide-y divide-slate-100 text-sm">
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ANSICHT 2: Fokus Modus für Smartphone & Elternsprechtag -->
+      <div id="cardView" class="hidden flex-col gap-3 flex-1 min-h-0 overflow-y-auto pr-0.5 w-full pb-8">
+        <div class="flex items-center justify-between bg-white p-3 rounded-2xl border border-slate-200 shadow-xs shrink-0">
+          <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Fokus Modus</span>
+          <select id="studentSelect" onchange="renderCardView()" class="bg-slate-50 border border-slate-200 text-xs font-medium rounded-xl px-3 py-1.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+          </select>
+        </div>
+
+        <!-- Profil & Pädagogische Notiz des Kindes im Fokus-Modus -->
+        <div id="cardStudentHeader" class="w-full">
+        </div>
+
+        <div id="cardContainer" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
+        </div>
+
+        <!-- Elternsprechtags-Bereich im Fokus-Modus -->
+        <div id="multiCourseSummaryContainer" class="mt-2 flex flex-col gap-3">
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- Status Dropdown / Popover -->
+  <div id="statusDropdownPopover" class="fixed hidden z-50 bg-white border border-slate-200 rounded-2xl shadow-2xl p-2 min-w-[210px] flex flex-col gap-1 transition-all transform origin-top-left">
+    <div class="text-[10px] font-bold text-slate-400 px-2 py-1 border-b border-slate-100 uppercase tracking-wider flex justify-between items-center">
+      <span>Status festlegen</span>
+      <button onclick="closeStatusPopover()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div id="statusDropdownItems" class="flex flex-col gap-1 max-h-60 overflow-y-auto pt-1">
+    </div>
+  </div>
+
+  <!-- Toast Benachrichtigung -->
+  <div id="toast" class="fixed bottom-5 right-5 bg-slate-900 text-white px-4 py-2.5 rounded-xl shadow-lg text-xs font-medium transition-all duration-300 transform translate-y-20 opacity-0 z-50 flex items-center gap-2 pointer-events-none">
+    <i id="toastIcon" class="fa-solid fa-circle-check text-emerald-400"></i>
+    <span id="toastMsg">Gespeichert</span>
+  </div>
+
+  <!-- Modal: Bemerkungen pro Schüler -->
+  <div id="noteModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-40 hidden">
+    <div class="bg-white w-full max-w-md rounded-2xl p-5 shadow-2xl border border-slate-100 flex flex-col gap-3">
+      <div class="flex justify-between items-center border-b border-slate-100 pb-2.5">
+        <div>
+          <h3 class="font-bold text-slate-900 text-sm sm:text-base" id="noteStudentTitle">Notiz zum Kind</h3>
+          <p class="text-[11px] text-amber-600 font-medium"><i class="fa-solid fa-shield-halved mr-1"></i>Nur für Lehrkraft (im Smartboard-Modus verborgen)</p>
+        </div>
+        <button onclick="closeModal('noteModal')" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+      </div>
+      <div>
+        <textarea id="studentNoteText" rows="4" placeholder="z. B. Braucht Lesehilfe bei Textaufgaben, Fehlzeiten am 04.09. nachreichen..." class="w-full p-3 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-slate-50"></textarea>
+      </div>
+      <div class="flex justify-end gap-2 pt-1">
+        <button onclick="closeModal('noteModal')" class="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100">Schließen</button>
+        <button onclick="saveStudentNote()" class="px-4 py-1.5 rounded-xl bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700">Notiz speichern</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Schülername bearbeiten -->
+  <div id="editStudentModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-40 hidden">
+    <div class="bg-white w-full max-w-sm rounded-2xl p-5 shadow-2xl border border-slate-100 flex flex-col gap-3">
+      <div class="flex justify-between items-center border-b border-slate-100 pb-2">
+        <h3 class="font-bold text-slate-900 text-sm sm:text-base">Schülername korrigieren</h3>
+        <button onclick="closeModal('editStudentModal')" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-600 mb-1">Vor- und Nachname</label>
+        <input type="text" id="editStudentNameInput" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" onkeydown="if(event.key==='Enter') applyEditStudentName()">
+      </div>
+      <div class="flex justify-end gap-2 pt-2">
+        <button onclick="closeModal('editStudentModal')" class="px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100">Abbrechen</button>
+        <button onclick="applyEditStudentName()" class="px-4 py-1.5 rounded-xl bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800">Speichern</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Kurs anlegen -->
+  <div id="addCourseModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-40 hidden">
+    <div class="bg-white w-full max-w-sm rounded-2xl p-5 shadow-2xl border border-slate-100 flex flex-col gap-3">
+      <div class="flex justify-between items-center border-b border-slate-100 pb-2">
+        <h3 class="font-bold text-slate-900 text-sm sm:text-base">Neuen Kurs anlegen</h3>
+        <button onclick="closeModal('addCourseModal')" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-600 mb-1">Klasse und Fach (z. B. 6a Biologie)</label>
+        <input type="text" id="newCourseName" placeholder="z. B. 6a Biologie" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" onkeydown="if(event.key==='Enter') createCourse()">
+        <label class="flex items-center gap-2 mt-3 text-xs text-slate-600 cursor-pointer">
+          <input type="checkbox" id="copyStudentsCheckbox" checked class="rounded text-emerald-600 focus:ring-0">
+          <span>Schüler aus aktuellem Kurs übernehmen</span>
+        </label>
+      </div>
+      <div class="flex justify-end gap-2 pt-2">
+        <button onclick="closeModal('addCourseModal')" class="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100">Abbrechen</button>
+        <button onclick="createCourse()" class="px-4 py-1.5 rounded-xl bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700">Anlegen</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Bestätigungsdialog -->
+  <div id="confirmModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 hidden">
+    <div class="bg-white w-full max-w-sm rounded-2xl p-5 shadow-2xl border border-slate-100 flex flex-col gap-3">
+      <h3 class="font-bold text-slate-900 text-base" id="confirmModalTitle">Bestätigung</h3>
+      <p class="text-xs text-slate-600 leading-relaxed" id="confirmModalText">Bist du sicher?</p>
+      <div class="flex justify-end gap-2 pt-2">
+        <button id="confirmCancelBtn" class="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100">Abbrechen</button>
+        <button id="confirmOkBtn" class="px-4 py-1.5 rounded-xl bg-rose-600 text-white text-xs font-semibold hover:bg-rose-700">Bestätigen</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Schüler hinzufügen -->
+  <div id="addStudentModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-40 hidden">
+    <div class="bg-white w-full max-w-md rounded-2xl p-5 shadow-2xl border border-slate-100 flex flex-col gap-3">
+      <div class="flex justify-between items-center border-b border-slate-100 pb-2">
+        <h3 class="font-bold text-slate-900 text-base">Kind hinzufügen</h3>
+        <button onclick="closeModal('addStudentModal')" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-600 mb-1">Vor- und Nachname</label>
+        <input type="text" id="newStudentName" placeholder="z. B. Mia Schmidt" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" onkeydown="if(event.key==='Enter') addStudent()">
+        <p class="text-[11px] text-slate-400 mt-1">Mehrere Kinder können durch ein Komma getrennt eingegeben werden.</p>
+      </div>
+      <div class="flex justify-end gap-2 pt-2">
+        <button onclick="closeModal('addStudentModal')" class="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100">Abbrechen</button>
+        <button onclick="addStudent()" class="px-4 py-1.5 rounded-xl bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800">Hinzufügen</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Material anlegen -->
+  <div id="addTaskModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-40 hidden">
+    <div class="bg-white w-full max-w-md rounded-2xl p-5 shadow-2xl border border-slate-100 flex flex-col gap-3">
+      <div class="flex justify-between items-center border-b border-slate-100 pb-2">
+        <h3 class="font-bold text-slate-900 text-base">Material anlegen</h3>
+        <button onclick="closeModal('addTaskModal')" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-600 mb-1">Bezeichnung</label>
+        <input type="text" id="newTaskName" placeholder="z. B. Material 1: Pflanzenzelle" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" onkeydown="if(event.key==='Enter') addTask()">
+      </div>
+      <div class="flex justify-end gap-2 pt-2">
+        <button onclick="closeModal('addTaskModal')" class="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100">Abbrechen</button>
+        <button onclick="addTask()" class="px-4 py-1.5 rounded-xl bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700">Erstellen</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Status Verwaltung -->
+  <div id="statusModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-40 hidden">
+    <div class="bg-white w-full max-w-lg rounded-2xl p-5 shadow-2xl border border-slate-100 flex flex-col gap-3 max-h-[90vh] overflow-y-auto">
+      <div class="flex justify-between items-center border-b border-slate-100 pb-2.5">
+        <div>
+          <h3 class="font-bold text-slate-900 text-base">Eigene Status-Stufen</h3>
+          <p class="text-xs text-slate-500">Definiere deine Symbole, Noten und Farben.</p>
+        </div>
+        <button onclick="closeModal('statusModal')" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+      </div>
+
+      <div id="statusList" class="flex flex-col gap-2"></div>
+
+      <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200 flex flex-col gap-2">
+        <span class="text-xs font-semibold text-slate-700">Neue Stufe hinzufügen</span>
+        <div class="grid grid-cols-12 gap-2">
+          <input type="text" id="newStatusLabel" placeholder="Name (z. B. Note 2)" class="col-span-6 px-3 py-1.5 border border-slate-200 rounded-lg text-xs bg-white focus:outline-none">
+          <input type="text" id="newStatusShort" placeholder="Kürzel (2)" maxlength="4" class="col-span-3 px-2 py-1.5 border border-slate-200 rounded-lg text-xs bg-white text-center focus:outline-none">
+          <input type="color" id="newStatusColor" value="#059669" class="col-span-3 h-8 w-full rounded-lg cursor-pointer border border-slate-200 bg-white">
+        </div>
+        <button onclick="addCustomStatus()" class="mt-1 w-full py-1.5 bg-slate-800 text-white rounded-lg text-xs font-semibold hover:bg-slate-700 transition">
+          Stufe sichern
+        </button>
+      </div>
+
+      <div class="flex justify-end pt-2">
+        <button onclick="closeModal('statusModal')" class="px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-semibold">Fertig</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: EXPORT & IMPORT ZENTRALE -->
+  <div id="exportModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-40 hidden">
+    <div class="bg-white w-full max-w-lg rounded-2xl p-5 shadow-2xl border border-slate-100 flex flex-col gap-4 max-h-[90vh] overflow-y-auto">
+      <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+        <div>
+          <h3 class="font-bold text-slate-900 text-base">Export & Import</h3>
+          <p class="text-xs text-slate-500">Wähle das passende Format für Dokumentation, Druck oder Austausch.</p>
+        </div>
+        <button onclick="closeModal('exportModal')" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+      </div>
+
+      <!-- Export Formate -->
+      <div class="flex flex-col gap-2.5">
+        <span class="text-xs font-bold text-slate-700 uppercase tracking-wider">Aktuellen Kurs exportieren</span>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+          <button onclick="exportExcel()" class="p-3 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl flex flex-col items-center justify-center gap-1.5 text-center transition group">
+            <i class="fa-solid fa-file-excel text-emerald-600 text-xl group-hover:scale-110 transition-transform"></i>
+            <span class="text-xs font-bold text-emerald-950">Excel (.xlsx)</span>
+            <span class="text-[10px] text-emerald-700">Tabellenkalkulation</span>
+          </button>
+          <button onclick="exportPDF()" class="p-3 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl flex flex-col items-center justify-center gap-1.5 text-center transition group">
+            <i class="fa-solid fa-file-pdf text-rose-600 text-xl group-hover:scale-110 transition-transform"></i>
+            <span class="text-xs font-bold text-rose-950">PDF Tabelle</span>
+            <span class="text-[10px] text-rose-700">Druckfertig DIN-A4</span>
+          </button>
+          <button onclick="exportCSV()" class="p-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl flex flex-col items-center justify-center gap-1.5 text-center transition group">
+            <i class="fa-solid fa-file-csv text-slate-600 text-xl group-hover:scale-110 transition-transform"></i>
+            <span class="text-xs font-bold text-slate-900">CSV Datei</span>
+            <span class="text-[10px] text-slate-600">Austausch & Sync</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Import Bereich -->
+      <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-xl flex flex-col gap-2 mt-1">
+        <span class="text-xs font-bold text-slate-800">CSV-Klassenliste einspielen</span>
+        <p class="text-[11px] text-slate-600 leading-relaxed">
+          Überträgt Namen, Materialien und Noten aus einer CSV-Datei direkt in diesen Kurs.
+        </p>
+        <label class="w-full py-2.5 px-3 bg-white border border-slate-300 hover:bg-slate-100 text-slate-800 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer transition shadow-xs">
+          <i class="fa-solid fa-upload text-slate-500"></i> CSV auswählen & einspielen
+          <input type="file" id="csvFileInput" accept=".csv" onchange="importCSVFile(event)" class="hidden">
+        </label>
+      </div>
+
+      <div class="border-t border-slate-100 pt-3 flex justify-between items-center">
+        <button onclick="confirmResetCurrentCourse()" class="text-xs text-rose-500 hover:underline">Aktuellen Kurs leeren</button>
+        <button onclick="closeModal('exportModal')" class="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-semibold">Schließen</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: CHANGELOG & VERSIONSNOTIZEN -->
+  <div id="changelogModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 hidden">
+    <div class="bg-white w-full max-w-lg rounded-2xl p-5 shadow-2xl border border-slate-100 flex flex-col gap-3 max-h-[85vh]">
+      <div class="flex justify-between items-center border-b border-slate-100 pb-2.5">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-sm">
+            <i class="fa-solid fa-code-branch"></i>
+          </div>
+          <div>
+            <h3 class="font-bold text-slate-900 text-sm sm:text-base">Versionshistorie & Updates</h3>
+            <p class="text-[11px] text-slate-500">Chronologischer Überblick aller Funktionen</p>
+          </div>
+        </div>
+        <button onclick="closeModal('changelogModal')" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+      </div>
+
+      <div class="overflow-y-auto pr-1 flex flex-col gap-4 text-xs">
+        <!-- Version 1.4.7 -->
+        <div class="border-l-2 border-emerald-500 pl-3 flex flex-col gap-1">
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">v1.4.7 (Aktuell)</span>
+            <span class="text-slate-400 text-[10px]">Herbst 2026</span>
+          </div>
+          <p class="font-semibold text-slate-800">Notizen- und Profilanzeige im Fokus-Modus</p>
+          <ul class="list-disc list-inside text-slate-600 space-y-0.5 leading-relaxed">
+            <li><strong>Profil- & Notizenbanner:</strong> Im Fokus-Modus wird die pädagogische Notiz des aktuell ausgewählten Schülers gut lesbar oberhalb der Materialkarten angezeigt.</li>
+            <li><strong>Direktes Bearbeiten:</strong> Mit einem Klick auf die Notizkarte öffnet sich das Notizenmodal; Änderungen werden sofort aktualisiert.</li>
+            <li><strong>Schnellregler:</strong> Fehltage und Niveaustufe lassen sich jetzt auch direkt im Fokus-Modus steuern.</li>
+          </ul>
+        </div>
+
+        <!-- Version 1.4.6 -->
+        <div class="border-l-2 border-slate-300 pl-3 flex flex-col gap-1">
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">v1.4.6</span>
+            <span class="text-slate-400 text-[10px]">Herbst 2026</span>
+          </div>
+          <p class="font-semibold text-slate-800">Korrektur des abgeschnittenen untersten Namens</p>
+          <ul class="list-disc list-inside text-slate-600 space-y-0.5 leading-relaxed">
+            <li><strong>Reale Viewport-Berechnung:</strong> Skalierung nutzt <code>window.innerHeight / zoom</code> in Pixeln statt statischer <code>vh</code>-Werte.</li>
+            <li><strong>Boden-Pufferzeile:</strong> Am Tabellenende sorgt ein Abstandhalter dafür, dass der unterste Schüler auch bei Scrollbalken stets erreichbar bleibt.</li>
+          </ul>
+        </div>
+
+        <!-- Version 1.4.5 -->
+        <div class="border-l-2 border-slate-300 pl-3 flex flex-col gap-1">
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">v1.4.5</span>
+            <span class="text-slate-400 text-[10px]">Herbst 2026</span>
+          </div>
+          <p class="font-semibold text-slate-800">Layout-Korrektur der Kursreiter-Leiste</p>
+          <ul class="list-disc list-inside text-slate-600 space-y-0.5 leading-relaxed">
+            <li>Keine Überlappung mehr zwischen Kurs-Tabs und dem Button „Kurs anlegen“.</li>
+          </ul>
+        </div>
+
+        <!-- Version 1.4.4 -->
+        <div class="border-l-2 border-slate-300 pl-3 flex flex-col gap-1">
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">v1.4.4</span>
+            <span class="text-slate-400 text-[10px]">Herbst 2026</span>
+          </div>
+          <p class="font-semibold text-slate-800">Vollflächige Zoom-Korrektur</p>
+        </div>
+
+        <!-- Version 1.4.0 -->
+        <div class="border-l-2 border-slate-300 pl-3 flex flex-col gap-1">
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">v1.4.0</span>
+            <span class="text-slate-400 text-[10px]">Herbst 2026</span>
+          </div>
+          <p class="font-semibold text-slate-800">Elternsprechtag & Notizen-Sammelansicht</p>
+        </div>
+      </div>
+
+      <div class="flex justify-end pt-2 border-t border-slate-100">
+        <button onclick="closeModal('changelogModal')" class="px-4 py-1.5 rounded-xl bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800">Schließen</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const DB_NAME = 'LernfortschrittTrackerDB_V5';
+    const DB_VERSION = 1;
+    const STORE_NAME = 'appDataStore';
+
+    const colorPalette = ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ec4899', '#06b6d4', '#64748b', '#6366f1'];
+
+    // Stufen-Modell (Bergsteiger-System)
+    const LEVEL_CONFIG = {
+      basis: { id: 'basis', label: 'Basislager', icon: '🏕️', color: '#b45309', bg: '#fef3c7' },
+      aufsteiger: { id: 'aufsteiger', label: 'Aufsteiger', icon: '🧗', color: '#1d4ed8', bg: '#dbeafe' },
+      gipfel: { id: 'gipfel', label: 'Gipfelstürmer', icon: '🏔️', color: '#047857', bg: '#d1fae5' }
+    };
+    const LEVEL_KEYS = ['basis', 'aufsteiger', 'gipfel'];
+
+    const defaultData = {
+      activeCourseId: 'course_6a_bio',
+      sortOrder: 'last',
+      isStudentMode: false,
+      zoomLevel: 1.0,
+      uiState: {
+        headerCollapsed: false,
+        actionBarCollapsed: false,
+        showAllNotes: false
+      },
+      statuses: [
+        { id: 'stat_offen', label: 'Nicht begonnen', short: 'NB', color: '#94a3b8' },
+        { id: 'stat_arbeit', label: 'In Bearbeitung', short: 'IB', color: '#3b82f6' },
+        { id: 'stat_hilfe', label: 'Braucht Rückmeldung', short: 'HIL', color: '#f59e0b' },
+        { id: 'stat_fertig', label: 'Abgeschlossen', short: 'OK', color: '#10b981' }
+      ],
+      courses: [
+        {
+          id: 'course_6a_bio',
+          name: '6a Biologie',
+          students: [
+            { id: 's1', name: 'Ann-Kathrin Adrian', level: 'aufsteiger', absenceCount: 0, note: 'Gute mündliche Mitarbeit' },
+            { id: 's2', name: 'Smar Alahmad', level: 'basis', absenceCount: 1, note: '' },
+            { id: 's3', name: 'Felix Becker', level: 'gipfel', absenceCount: 0, note: 'Experte für Zellmikroskopie' },
+            { id: 's4', name: 'Leni Matula', level: 'aufsteiger', absenceCount: 0, note: '' }
+          ],
+          tasks: [
+            { id: 't1', title: 'Material 1' },
+            { id: 't2', title: 'Material 2' }
+          ],
+          progress: {
+            's1_t1': 'stat_fertig',
+            's2_t1': 'stat_arbeit'
+          }
+        },
+        {
+          id: 'course_8b_eng',
+          name: '8b Englisch',
+          students: [
+            { id: 's1', name: 'Ann-Kathrin Adrian', level: 'aufsteiger', absenceCount: 0, note: '' },
+            { id: 's2', name: 'Smar Alahmad', level: 'basis', absenceCount: 0, note: '' }
+          ],
+          tasks: [
+            { id: 't1', title: 'Vocabulary Unit 1' },
+            { id: 't2', title: 'Reading Task' }
+          ],
+          progress: {}
+        }
+      ]
+    };
+
+    let appData = null;
+    let currentView = 'table';
+    let searchQuery = '';
+    let currentNoteStudentId = null;
+    let currentEditStudentId = null;
+    let currentPopoverStudentId = null;
+    let currentPopoverTaskId = null;
+
+    function openDatabase() {
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open(DB_NAME, DB_VERSION);
+        req.onupgradeneeded = (e) => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains(STORE_NAME)) {
+            db.createObjectStore(STORE_NAME);
+          }
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    async function saveToDB() {
+      try {
+        const db = await openDatabase();
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        tx.objectStore(STORE_NAME).put(appData, 'mainState');
+        await new Promise((res) => { tx.oncomplete = res; });
+        showToast('Stand gesichert');
+      } catch (err) {
+        console.error('Fehler beim Speichern:', err);
+      }
+    }
+
+    async function loadFromDB() {
+      try {
+        const db = await openDatabase();
+        const tx = db.transaction(STORE_NAME, 'readonly');
+        const req = tx.objectStore(STORE_NAME).get('mainState');
+        return new Promise((resolve) => {
+          req.onsuccess = () => resolve(req.result || null);
+          req.onerror = () => resolve(null);
+        });
+      } catch (err) {
+        console.error('Fehler beim Laden:', err);
+        return null;
+      }
+    }
+
+    async function requestStoragePersistence() {
+      if (navigator.storage && navigator.storage.persist) {
+        const isPersisted = await navigator.storage.persisted();
+        if (!isPersisted) await navigator.storage.persist();
+        const textElem = document.getElementById('storageStatusText');
+        if (textElem) {
+          textElem.innerHTML = '<span class="text-emerald-600 font-semibold"><i class="fa-solid fa-shield-halved"></i> Dauerhaft geschützt</span>';
+        }
+      }
+    }
+
+    window.addEventListener('DOMContentLoaded', async () => {
+      await requestStoragePersistence();
+      const loaded = await loadFromDB();
+      appData = loaded || JSON.parse(JSON.stringify(defaultData));
+
+      // Datenintegrität sicherstellen
+      if (!appData.courses || appData.courses.length === 0) {
+        appData.courses = JSON.parse(JSON.stringify(defaultData.courses));
+      }
+      if (!appData.uiState) {
+        appData.uiState = { headerCollapsed: false, actionBarCollapsed: false, showAllNotes: false };
+      }
+      if (appData.uiState.showAllNotes === undefined) {
+        appData.uiState.showAllNotes = false;
+      }
+
+      appData.courses.forEach(c => {
+        c.students.forEach((s, idx) => {
+          if (!s.level) s.level = 'aufsteiger';
+          if (s.absenceCount === undefined) s.absenceCount = 0;
+          if (s.note === undefined) s.note = '';
+          if (s.customOrder === undefined) s.customOrder = idx;
+        });
+      });
+
+      const sortSelect = document.getElementById('sortSelect');
+      if (sortSelect) sortSelect.value = appData.sortOrder || 'last';
+
+      applyZoom(appData.zoomLevel || 1.0);
+      applyStudentModeVisuals();
+      applyCollapseVisuals();
+      renderAll();
+
+      // Automatisches Anpassen bei Fenster- oder Smartboard-Größenänderung
+      window.addEventListener('resize', () => {
+        if (appData) {
+          applyZoom(appData.zoomLevel || 1.0);
+        }
+      });
+
+      // Klick außerhalb des Status-Popovers schließt dieses
+      document.addEventListener('click', (e) => {
+        const pop = document.getElementById('statusDropdownPopover');
+        if (pop && !pop.classList.contains('hidden') && !pop.contains(e.target) && !e.target.closest('.status-cell-btn')) {
+          closeStatusPopover();
+        }
+      });
+    });
+
+    function getActiveCourse() {
+      let crs = appData.courses.find(c => c.id === appData.activeCourseId);
+      if (!crs && appData.courses.length > 0) {
+        crs = appData.courses[0];
+        appData.activeCourseId = crs.id;
+      }
+      return crs;
+    }
+
+    function renderAll() {
+      renderCourseTabs();
+      updateCompactHeaderInfo();
+      updateNotesButtonLabel();
+      renderTable();
+      renderCardViewSelect();
+      renderCardView();
+      renderStatusSettingsList();
+    }
+
+    function toggleAllNotes() {
+      appData.uiState.showAllNotes = !appData.uiState.showAllNotes;
+      updateNotesButtonLabel();
+      saveToDB();
+      renderTable();
+      showToast(appData.uiState.showAllNotes ? 'Alle Notizen eingeblendet' : 'Notizen eingeklappt');
+    }
+
+    function updateNotesButtonLabel() {
+      const btn = document.getElementById('toggleNotesBtn');
+      const text = document.getElementById('toggleNotesBtnText');
+      if (!btn || !text) return;
+
+      if (appData.uiState.showAllNotes) {
+        btn.classList.add('bg-amber-600', 'text-white', 'border-amber-700');
+        btn.classList.remove('bg-amber-50', 'text-amber-900', 'border-amber-200');
+        text.textContent = 'Notizen verbergen';
+      } else {
+        btn.classList.remove('bg-amber-600', 'text-white', 'border-amber-700');
+        btn.classList.add('bg-amber-50', 'text-amber-900', 'border-amber-200');
+        text.textContent = 'Notizen einblenden';
+      }
+    }
+
+    function toggleHeaderCollapse() {
+      appData.uiState.headerCollapsed = !appData.uiState.headerCollapsed;
+      applyCollapseVisuals();
+      saveToDB();
+    }
+
+    function toggleActionBarCollapse() {
+      appData.uiState.actionBarCollapsed = !appData.uiState.actionBarCollapsed;
+      applyCollapseVisuals();
+      saveToDB();
+    }
+
+    function toggleAllBars() {
+      const areBothCollapsed = appData.uiState.headerCollapsed && appData.uiState.actionBarCollapsed;
+      if (areBothCollapsed) {
+        appData.uiState.headerCollapsed = false;
+        appData.uiState.actionBarCollapsed = false;
+        showToast('Standardansicht aktiviert');
+      } else {
+        appData.uiState.headerCollapsed = true;
+        appData.uiState.actionBarCollapsed = true;
+        showToast('Kompaktmodus: Maximale Tabellenhöhe');
+      }
+      applyCollapseVisuals();
+      saveToDB();
+    }
+
+    function applyCollapseVisuals() {
+      const fullHeader = document.getElementById('fullHeaderBar');
+      const compactHeader = document.getElementById('compactHeaderBar');
+      const fullAction = document.getElementById('fullActionBar');
+      const compactAction = document.getElementById('compactActionBar');
+      const toggleAllBtn = document.getElementById('toggleAllBarsBtn');
+
+      if (appData.uiState.headerCollapsed) {
+        fullHeader.classList.add('hidden');
+        compactHeader.classList.remove('hidden');
+      } else {
+        fullHeader.classList.remove('hidden');
+        compactHeader.classList.add('hidden');
+      }
+
+      if (appData.uiState.actionBarCollapsed) {
+        fullAction.classList.add('hidden');
+        compactAction.classList.remove('hidden');
+      } else {
+        fullAction.classList.remove('hidden');
+        compactAction.classList.add('hidden');
+      }
+
+      if (toggleAllBtn) {
+        if (appData.uiState.headerCollapsed && appData.uiState.actionBarCollapsed) {
+          toggleAllBtn.innerHTML = '<i class="fa-solid fa-arrows-down-to-line text-emerald-600"></i><span class="hidden xl:inline">Ausklappen</span>';
+          toggleAllBtn.title = 'Alle Leisten wieder ausklappen';
+        } else {
+          toggleAllBtn.innerHTML = '<i class="fa-solid fa-arrows-up-to-line text-slate-500"></i><span class="hidden xl:inline">Kompakt</span>';
+          toggleAllBtn.title = 'Leisten einklappen für maximale Tabellenhöhe';
+        }
+      }
+
+      updateCompactHeaderInfo();
+    }
+
+    function updateCompactHeaderInfo() {
+      const crs = getActiveCourse();
+      const compactTitle = document.getElementById('compactCourseTitle');
+      const compactZoom = document.getElementById('compactZoomLabel');
+      const compactBadge = document.getElementById('compactStudentModeBadge');
+      const searchBadge = document.getElementById('compactSearchBadge');
+
+      if (compactTitle && crs) compactTitle.textContent = crs.name;
+      if (compactZoom) compactZoom.textContent = `${Math.round((appData.zoomLevel || 1.0) * 100)}%`;
+      if (compactBadge) {
+        if (appData.isStudentMode) compactBadge.classList.remove('hidden');
+        else compactBadge.classList.add('hidden');
+      }
+      if (searchBadge) {
+        if (searchQuery.trim().length > 0) searchBadge.classList.remove('hidden');
+        else searchBadge.classList.add('hidden');
+      }
+    }
+
+    function renderCourseTabs() {
+      const container = document.getElementById('courseTabsList');
+      container.innerHTML = '';
+
+      appData.courses.forEach(crs => {
+        const isActive = crs.id === appData.activeCourseId;
+        const btn = document.createElement('div');
+        btn.className = `flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-semibold cursor-pointer transition shrink-0 ${
+          isActive 
+            ? 'bg-emerald-600 text-white shadow-xs' 
+            : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+        }`;
+        
+        btn.innerHTML = `
+          <span onclick="selectCourse('${crs.id}')">${crs.name}</span>
+          ${(appData.courses.length > 1 && !appData.isStudentMode) ? `
+            <button onclick="event.stopPropagation(); deleteCoursePrompt('${crs.id}')" class="text-[10px] ml-1 opacity-60 hover:opacity-100" title="Kurs löschen">
+              <i class="fa-solid fa-xmark"></i>
+            </button>
+          ` : ''}
+        `;
+        container.appendChild(btn);
+      });
+    }
+
+    function selectCourse(id) {
+      appData.activeCourseId = id;
+      saveToDB();
+      renderAll();
+    }
+
+    function createCourse() {
+      const input = document.getElementById('newCourseName');
+      const name = input.value.trim();
+      if (!name) return;
+
+      const copyStudents = document.getElementById('copyStudentsCheckbox').checked;
+      const currentCrs = getActiveCourse();
+
+      const newId = 'course_' + Date.now();
+      const newCourse = {
+        id: newId,
+        name: name,
+        students: copyStudents && currentCrs ? JSON.parse(JSON.stringify(currentCrs.students)) : [],
+        tasks: [
+          { id: 't_' + Date.now() + '_1', title: 'Material 1' }
+        ],
+        progress: {}
+      };
+
+      appData.courses.push(newCourse);
+      appData.activeCourseId = newId;
+
+      input.value = '';
+      closeModal('addCourseModal');
+      saveToDB();
+      renderAll();
+      showToast(`Kurs ${name} angelegt`);
+    }
+
+    function deleteCoursePrompt(id) {
+      if (appData.courses.length <= 1) {
+        showToast('Mindestens ein Kurs muss bestehen bleiben');
+        return;
+      }
+      const crs = appData.courses.find(c => c.id === id);
+      showCustomConfirm(
+        'Kurs entfernen',
+        `Möchtest du den Kurs "${crs.name}" wirklich mitsamt aller Schülerdaten entfernen?`,
+        () => {
+          appData.courses = appData.courses.filter(c => c.id !== id);
+          if (appData.activeCourseId === id) {
+            appData.activeCourseId = appData.courses[0].id;
+          }
+          saveToDB();
+          renderAll();
+          showToast('Kurs gelöscht');
+        }
+      );
+    }
+
+    function formatStudentDisplayName(fullName) {
+      if (!appData.isStudentMode) return fullName;
+      const parts = fullName.trim().split(/\s+/);
+      if (parts.length <= 1) return fullName;
+      const firstName = parts.slice(0, -1).join(' ');
+      const lastName = parts[parts.length - 1];
+      const initial = lastName.charAt(0).toUpperCase();
+      return `${firstName} ${initial}.`;
+    }
+
+    function parseNameParts(fullName) {
+      const trimmed = fullName.trim();
+      if (trimmed.includes(',')) {
+        const parts = trimmed.split(',');
+        return {
+          last: parts[0].trim(),
+          first: parts.slice(1).join(' ').trim()
+        };
+      }
+      const parts = trimmed.split(/\s+/);
+      if (parts.length === 1) {
+        return { first: parts[0], last: parts[0] };
+      }
+      return {
+        first: parts.slice(0, -1).join(' '),
+        last: parts[parts.length - 1]
+      };
+    }
+
+    function changeSort(val) {
+      appData.sortOrder = val;
+      saveToDB();
+      renderTable();
+      renderCardViewSelect();
+      renderCardView();
+    }
+
+    function getSortedStudents(studentList) {
+      const order = appData.sortOrder || 'last';
+      if (order === 'custom') {
+        return [...studentList].sort((a, b) => {
+          const ordA = a.customOrder !== undefined ? a.customOrder : 0;
+          const ordB = b.customOrder !== undefined ? b.customOrder : 0;
+          return ordA - ordB;
+        });
+      }
+      return [...studentList].sort((a, b) => {
+        const pA = parseNameParts(a.name);
+        const pB = parseNameParts(b.name);
+        if (order === 'last') {
+          const cmp = pA.last.localeCompare(pB.last, 'de', { sensitivity: 'base' });
+          if (cmp !== 0) return cmp;
+          return pA.first.localeCompare(pB.first, 'de', { sensitivity: 'base' });
+        } else {
+          const cmp = pA.first.localeCompare(pB.first, 'de', { sensitivity: 'base' });
+          if (cmp !== 0) return cmp;
+          return pA.last.localeCompare(pB.last, 'de', { sensitivity: 'base' });
+        }
+      });
+    }
+
+    function moveStudentOrder(studentId, direction) {
+      const course = getActiveCourse();
+      if (!course) return;
+
+      course.students.forEach((s, idx) => {
+        if (s.customOrder === undefined) s.customOrder = idx;
+      });
+
+      const sorted = getSortedStudents(course.students);
+      const currentIndex = sorted.findIndex(s => s.id === studentId);
+      const targetIndex = currentIndex + direction;
+
+      if (currentIndex < 0 || targetIndex < 0 || targetIndex >= sorted.length) return;
+
+      const [movedStudent] = sorted.splice(currentIndex, 1);
+      sorted.splice(targetIndex, 0, movedStudent);
+
+      sorted.forEach((s, idx) => {
+        s.customOrder = idx;
+      });
+      course.students = sorted;
+
+      saveToDB();
+      renderTable();
+      if (currentView === 'card') renderCardView();
+    }
+
+    /* SKALIERUNG (ZOOM) - MIT DYNAMISCHER HÖHENKOMPENSATION */
+    function adjustZoom(delta) {
+      let z = (appData.zoomLevel || 1.0) + delta;
+      z = Math.max(0.7, Math.min(1.6, Math.round(z * 10) / 10));
+      applyZoom(z);
+      appData.zoomLevel = z;
+      updateCompactHeaderInfo();
+      saveToDB();
+    }
+
+    function resetZoom() {
+      applyZoom(1.0);
+      appData.zoomLevel = 1.0;
+      updateCompactHeaderInfo();
+      saveToDB();
+    }
+
+    function applyZoom(zoom) {
+      const wrapper = document.getElementById('appWrapper');
+      const label = document.getElementById('zoomLabel');
+      if (wrapper) {
+        wrapper.style.transformOrigin = 'top left';
+        wrapper.style.transform = `scale(${zoom})`;
+        wrapper.style.width = `${100 / zoom}%`;
+        
+        // Exakte Pixel-Berechnung der sichtbaren Viewport-Höhe verhindert Abschneiden am unteren Rand
+        const exactHeight = window.innerHeight / zoom;
+        wrapper.style.height = `${exactHeight}px`;
+        wrapper.style.maxHeight = `${exactHeight}px`;
+      }
+      if (label) {
+        label.textContent = `${Math.round(zoom * 100)}%`;
+      }
+    }
+
+    function toggleStudentMode() {
+      appData.isStudentMode = !appData.isStudentMode;
+      applyStudentModeVisuals();
+      saveToDB();
+      renderAll();
+      showToast(appData.isStudentMode ? 'Smartboard-Modus aktiv (Namen anonymisiert)' : 'Lehrkraft-Modus aktiv');
+    }
+
+    function applyStudentModeVisuals() {
+      const body = document.getElementById('appBody');
+      const badge = document.getElementById('studentModeBadge');
+      const btnText = document.getElementById('studentModeBtnText');
+      const btn = document.getElementById('toggleStudentModeBtn');
+      const levelLegend = document.getElementById('levelLegend');
+
+      if (appData.isStudentMode) {
+        body.classList.add('student-mode-active');
+        badge.classList.remove('hidden');
+        levelLegend.classList.remove('hidden');
+        btnText.textContent = 'Lehrkraft-Modus';
+        btn.classList.add('bg-indigo-600', 'text-white');
+        btn.classList.remove('bg-indigo-50', 'text-indigo-900');
+      } else {
+        body.classList.remove('student-mode-active');
+        badge.classList.add('hidden');
+        btnText.textContent = 'Schülermodus';
+        btn.classList.remove('bg-indigo-600', 'text-white');
+        btn.classList.add('bg-indigo-50', 'text-indigo-900');
+      }
+      updateCompactHeaderInfo();
+    }
+
+    function renderTable() {
+      const course = getActiveCourse();
+      if (!course) return;
+
+      const headerRow = document.getElementById('tableHeaderRow');
+      const body = document.getElementById('tableBody');
+      headerRow.innerHTML = '';
+      body.innerHTML = '';
+
+      // Schülerspalte (fixiert und schlank)
+      const thStudent = document.createElement('th');
+      thStudent.className = 'py-3 px-3 sticky-col bg-slate-50 border-r border-slate-200 min-w-[170px] sm:min-w-[190px] text-slate-700';
+      thStudent.innerHTML = `
+        <div class="flex items-center justify-between">
+          <span class="font-bold">Schüler (${course.students.length})</span>
+        </div>
+      `;
+      headerRow.appendChild(thStudent);
+
+      // Material-Spalten
+      course.tasks.forEach((t) => {
+        const th = document.createElement('th');
+        th.className = 'py-3 px-3 min-w-[130px] text-center border-r border-slate-200 font-medium group relative';
+        th.innerHTML = `
+          <div class="flex items-center justify-between gap-1">
+            <span class="truncate" title="${t.title}">${t.title}</span>
+            ${!appData.isStudentMode ? `
+              <button onclick="deleteTaskPrompt('${t.id}')" class="text-slate-300 hover:text-rose-500 text-[11px] p-1 transition opacity-0 group-hover:opacity-100" title="Material entfernen">
+                <i class="fa-solid fa-trash"></i>
+              </button>
+            ` : ''}
+          </div>
+        `;
+        headerRow.appendChild(th);
+      });
+
+      const sortedStudents = getSortedStudents(course.students);
+      const filtered = sortedStudents.filter(s => 
+        s.name.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+
+      if (filtered.length === 0) {
+        body.innerHTML = `
+          <tr>
+            <td colspan="${course.tasks.length + 1}" class="text-center py-8 text-slate-400 text-xs">
+              Keine Kinder in diesem Kurs. Klicke auf "Kind hinzufügen" oder spiele eine CSV ein.
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      filtered.forEach((student) => {
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-slate-50/70 transition';
+
+        const currentLevel = LEVEL_CONFIG[student.level || 'aufsteiger'] || LEVEL_CONFIG.aufsteiger;
+        const displayName = formatStudentDisplayName(student.name);
+
+        const tdName = document.createElement('td');
+        tdName.className = 'py-2 px-2.5 sticky-col bg-white border-r border-slate-200 font-medium text-slate-800 group';
+        
+        tdName.innerHTML = `
+          <div class="flex items-center justify-between gap-1.5">
+            <div class="flex items-center gap-1.5 min-w-0 flex-1">
+              <!-- Niveaustufen-Badge -->
+              <button onclick="${appData.isStudentMode ? '' : `cycleStudentLevel('${student.id}')`}" 
+                      class="px-1.5 py-0.5 rounded text-[11px] font-semibold transition shrink-0 flex items-center gap-1 shadow-2xs ${appData.isStudentMode ? 'cursor-default' : 'hover:scale-105 active:scale-95'}"
+                      style="background-color: ${currentLevel.bg}; color: ${currentLevel.color}; border: 1px solid ${currentLevel.color}40;"
+                      title="Lernniveau: ${currentLevel.label} ${appData.isStudentMode ? '' : '(Klicken zum Weiterstufen)'}">
+                <span>${currentLevel.icon}</span>
+                <span class="text-[10px] hidden sm:inline">${currentLevel.label}</span>
+              </button>
+
+              <!-- Name -->
+              <span class="truncate cursor-pointer hover:text-emerald-600 transition text-xs sm:text-sm" 
+                    onclick="${appData.isStudentMode ? '' : `openEditStudentModal('${student.id}')`}" 
+                    title="${appData.isStudentMode ? '' : 'Klicken zum Korrigieren des Namens'}">
+                ${displayName}
+              </span>
+            </div>
+
+            <!-- Aktionen pro Kind -->
+            <div class="teacher-only flex items-center gap-0.5 shrink-0">
+              <!-- Eigene Reihenfolge Verschiebe-Knöpfe -->
+              ${appData.sortOrder === 'custom' ? `
+                <div class="flex items-center bg-slate-100 rounded-md border border-slate-200 mr-0.5">
+                  <button onclick="moveStudentOrder('${student.id}', -1)" class="px-1 py-0.5 hover:text-emerald-600 text-[10px] transition" title="Nach oben verschieben">
+                    <i class="fa-solid fa-chevron-up"></i>
+                  </button>
+                  <button onclick="moveStudentOrder('${student.id}', 1)" class="px-1 py-0.5 hover:text-emerald-600 text-[10px] transition" title="Nach unten verschieben">
+                    <i class="fa-solid fa-chevron-down"></i>
+                  </button>
+                </div>
+              ` : ''}
+
+              <!-- Krankheits-Zähler -->
+              <button onclick="incrementAbsence('${student.id}')" oncontextmenu="event.preventDefault(); decrementAbsence('${student.id}')"
+                      class="px-1.5 py-0.5 rounded-md text-[10px] font-semibold border transition flex items-center gap-1 ${student.absenceCount > 0 ? 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100' : 'bg-slate-50 text-slate-400 border-slate-200 hover:text-slate-700'}"
+                      title="Fehltage: ${student.absenceCount} (Linksklick: +1, Rechtsklick: -1)">
+                <i class="fa-solid fa-notes-medical"></i>
+                <span>${student.absenceCount}</span>
+              </button>
+
+              <!-- Bemerkungs-Knopf -->
+              <button onclick="openNoteModal('${student.id}')" 
+                      class="p-1 rounded-md text-xs transition ${student.note ? 'text-amber-500 bg-amber-50 hover:bg-amber-100' : 'text-slate-300 hover:text-slate-600'}"
+                      title="${student.note ? `Bemerkung: ${student.note}` : 'Bemerkung hinzufügen'}">
+                <i class="fa-solid fa-comment-dots"></i>
+              </button>
+
+              <!-- Löschen Knopf -->
+              <button onclick="deleteStudentPrompt('${student.id}')" class="text-slate-300 hover:text-rose-500 text-xs p-1 opacity-0 group-hover:opacity-100 transition" title="Kind entfernen">
+                <i class="fa-solid fa-user-minus"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Notiz-Anzeige im Lehrkraft-Modus -->
+          ${(appData.uiState.showAllNotes && !appData.isStudentMode) ? `
+            <div class="mt-1.5 p-1.5 rounded-lg border text-[11px] leading-snug cursor-pointer transition ${
+              student.note 
+                ? 'bg-amber-50 border-amber-200 text-amber-900 font-normal hover:bg-amber-100' 
+                : 'bg-slate-50 border-slate-200 text-slate-400 font-normal hover:text-slate-600'
+            }" onclick="openNoteModal('${student.id}')" title="Klicken zum Bearbeiten">
+              <i class="fa-solid fa-pen-to-square text-[10px] mr-1 ${student.note ? 'text-amber-600' : 'text-slate-400'}"></i>
+              <span>${student.note ? student.note : 'Keine Notiz vorhanden (+)'}</span>
+            </div>
+          ` : ''}
+        `;
+        tr.appendChild(tdName);
+
+        // Material-Zellen
+        course.tasks.forEach((task) => {
+          const td = document.createElement('td');
+          td.className = 'py-2 px-2 text-center border-r border-slate-100';
+
+          const progressKey = `${student.id}_${task.id}`;
+          const currentStatusId = course.progress[progressKey] || appData.statuses[0]?.id;
+          const statusObj = appData.statuses.find(s => s.id === currentStatusId) || appData.statuses[0] || { label: 'Offen', short: '-', color: '#94a3b8' };
+
+          const pill = document.createElement('button');
+          pill.className = 'status-cell-btn w-full py-1.5 px-2 rounded-lg text-xs font-semibold transition transform active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs';
+          pill.style.backgroundColor = statusObj.color + '22';
+          pill.style.color = statusObj.color;
+          pill.style.border = `1px solid ${statusObj.color}55`;
+          pill.innerHTML = `
+            <span class="w-2 h-2 rounded-full shrink-0" style="background-color: ${statusObj.color}"></span>
+            <span class="truncate">${statusObj.short}</span>
+          `;
+          pill.title = `${displayName} | ${task.title}: ${statusObj.label} (Klicken für Dropdown)`;
+
+          pill.onclick = (e) => openStatusPopover(e, student.id, task.id);
+          td.appendChild(pill);
+          tr.appendChild(td);
+        });
+
+        body.appendChild(tr);
+      });
+
+      // Pufferzeile am Tabellenende: Verhindert, dass der unterste Name durch den Containerrand oder horizontale Scrollbalken verdeckt wird
+      const spacerTr = document.createElement('tr');
+      spacerTr.className = 'border-none select-none pointer-events-none';
+      spacerTr.innerHTML = `
+        <td colspan="${course.tasks.length + 1}" class="py-4 bg-transparent border-none"></td>
+      `;
+      body.appendChild(spacerTr);
+    }
+
+    function openStatusPopover(e, studentId, taskId) {
+      e.stopPropagation();
+      currentPopoverStudentId = studentId;
+      currentPopoverTaskId = taskId;
+
+      const popover = document.getElementById('statusDropdownPopover');
+      const itemsContainer = document.getElementById('statusDropdownItems');
+      itemsContainer.innerHTML = '';
+
+      const course = getActiveCourse();
+      const key = `${studentId}_${taskId}`;
+      const activeStatusId = course.progress[key] || appData.statuses[0]?.id;
+
+      appData.statuses.forEach(st => {
+        const isCurrent = st.id === activeStatusId;
+        const opt = document.createElement('button');
+        opt.className = `w-full text-left px-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center justify-between gap-2 transition cursor-pointer ${isCurrent ? 'bg-slate-100 font-bold' : 'hover:bg-slate-50 text-slate-700'}`;
+        opt.innerHTML = `
+          <div class="flex items-center gap-2">
+            <span class="w-3 h-3 rounded-full shrink-0" style="background-color: ${st.color}"></span>
+            <span>${st.label}</span>
+          </div>
+          <span class="text-[10px] text-slate-400 font-mono px-1.5 py-0.5 rounded bg-white border border-slate-200">${st.short}</span>
+        `;
+        opt.onclick = () => selectStatusFromPopover(studentId, taskId, st.id);
+        itemsContainer.appendChild(opt);
+      });
+
+      const rect = e.currentTarget.getBoundingClientRect();
+      const topPos = Math.min(window.innerHeight - 260, rect.bottom + 4);
+      const leftPos = Math.min(window.innerWidth - 220, Math.max(10, rect.left));
+
+      popover.style.top = `${topPos}px`;
+      popover.style.left = `${leftPos}px`;
+      popover.classList.remove('hidden');
+    }
+
+    function closeStatusPopover() {
+      const popover = document.getElementById('statusDropdownPopover');
+      if (popover) popover.classList.add('hidden');
+      currentPopoverStudentId = null;
+      currentPopoverTaskId = null;
+    }
+
+    function selectStatusFromPopover(studentId, taskId, statusId) {
+      const course = getActiveCourse();
+      if (!course) return;
+
+      const key = `${studentId}_${taskId}`;
+      course.progress[key] = statusId;
+      closeStatusPopover();
+      saveToDB();
+      renderTable();
+      if (currentView === 'card') renderCardView();
+    }
+
+    function cycleStatusStep(studentId, taskId) {
+      const course = getActiveCourse();
+      if (!course || !appData.statuses.length) return;
+
+      const key = `${studentId}_${taskId}`;
+      const currentStatusId = course.progress[key] || appData.statuses[0].id;
+      const currentIndex = appData.statuses.findIndex(s => s.id === currentStatusId);
+      
+      const nextIndex = (currentIndex + 1) % appData.statuses.length;
+      course.progress[key] = appData.statuses[nextIndex].id;
+
+      saveToDB();
+      renderTable();
+      if (currentView === 'card') renderCardView();
+    }
+
+    function openNoteModal(studentId) {
+      currentNoteStudentId = studentId;
+      const course = getActiveCourse();
+      const student = course.students.find(s => s.id === studentId);
+      if (!student) return;
+
+      document.getElementById('noteStudentTitle').textContent = `Notiz: ${student.name}`;
+      document.getElementById('studentNoteText').value = student.note || '';
+      openModal('noteModal');
+    }
+
+    function saveStudentNote() {
+      const course = getActiveCourse();
+      if (!course || !currentNoteStudentId) return;
+
+      const student = course.students.find(s => s.id === currentNoteStudentId);
+      if (student) {
+        student.note = document.getElementById('studentNoteText').value.trim();
+        saveToDB();
+        renderTable();
+        if (currentView === 'card') renderCardView();
+        showToast('Notiz gespeichert');
+      }
+      closeModal('noteModal');
+    }
+
+    function openEditStudentModal(studentId) {
+      currentEditStudentId = studentId;
+      const course = getActiveCourse();
+      const student = course.students.find(s => s.id === studentId);
+      if (!student) return;
+
+      document.getElementById('editStudentNameInput').value = student.name;
+      openModal('editStudentModal');
+      setTimeout(() => document.getElementById('editStudentNameInput').focus(), 50);
+    }
+
+    function applyEditStudentName() {
+      const course = getActiveCourse();
+      if (!course || !currentEditStudentId) return;
+
+      const val = document.getElementById('editStudentNameInput').value.trim();
+      if (!val) return;
+
+      const student = course.students.find(s => s.id === currentEditStudentId);
+      if (student) {
+        student.name = val;
+        saveToDB();
+        renderAll();
+        showToast('Name aktualisiert');
+      }
+      closeModal('editStudentModal');
+    }
+
+    function cycleStudentLevel(studentId) {
+      const course = getActiveCourse();
+      if (!course) return;
+
+      const student = course.students.find(s => s.id === studentId);
+      if (!student) return;
+
+      const currentIdx = LEVEL_KEYS.indexOf(student.level || 'aufsteiger');
+      const nextKey = LEVEL_KEYS[(currentIdx + 1) % LEVEL_KEYS.length];
+      student.level = nextKey;
+
+      saveToDB();
+      renderTable();
+      if (currentView === 'card') renderCardView();
+    }
+
+    function incrementAbsence(studentId) {
+      const course = getActiveCourse();
+      if (!course) return;
+      const student = course.students.find(s => s.id === studentId);
+      if (student) {
+        student.absenceCount = (student.absenceCount || 0) + 1;
+        saveToDB();
+        renderTable();
+        if (currentView === 'card') renderCardView();
+      }
+    }
+
+    function decrementAbsence(studentId) {
+      const course = getActiveCourse();
+      if (!course) return;
+      const student = course.students.find(s => s.id === studentId);
+      if (student && student.absenceCount > 0) {
+        student.absenceCount--;
+        saveToDB();
+        renderTable();
+        if (currentView === 'card') renderCardView();
+      }
+    }
+
+    function renderCardViewSelect() {
+      const course = getActiveCourse();
+      const select = document.getElementById('studentSelect');
+      select.innerHTML = '';
+      if (!course) return;
+
+      const sorted = getSortedStudents(course.students);
+      sorted.forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s.id;
+        opt.textContent = formatStudentDisplayName(s.name);
+        select.appendChild(opt);
+      });
+    }
+
+    function renderCardView() {
+      const course = getActiveCourse();
+      const select = document.getElementById('studentSelect');
+      const container = document.getElementById('cardContainer');
+      const headerContainer = document.getElementById('cardStudentHeader');
+      const multiCourseContainer = document.getElementById('multiCourseSummaryContainer');
+      container.innerHTML = '';
+      if (headerContainer) headerContainer.innerHTML = '';
+      if (multiCourseContainer) multiCourseContainer.innerHTML = '';
+      if (!course) return;
+
+      if (!select.value && course.students.length > 0) {
+        select.value = course.students[0].id;
+      }
+
+      const activeStudentId = select.value;
+      if (!activeStudentId) {
+        container.innerHTML = '<p class="text-xs text-slate-400 col-span-full">Keine Kinder vorhanden.</p>';
+        return;
+      }
+
+      const student = course.students.find(s => s.id === activeStudentId);
+      if (!student) return;
+
+      const levelObj = LEVEL_CONFIG[student.level || 'aufsteiger'] || LEVEL_CONFIG.aufsteiger;
+
+      // Schüler-Profil & Notiz-Banner für das ausgewählte Kind rendern
+      if (headerContainer) {
+        const displayName = formatStudentDisplayName(student.name);
+        headerContainer.innerHTML = `
+          <div class="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col gap-3">
+            <div class="flex flex-wrap items-center justify-between gap-2.5">
+              <div class="flex items-center gap-2.5">
+                <div class="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-lg shrink-0 shadow-2xs" style="background-color: ${levelObj.bg}; color: ${levelObj.color}; border: 1px solid ${levelObj.color}40;">
+                  ${levelObj.icon}
+                </div>
+                <div>
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <h3 class="font-bold text-slate-900 text-sm sm:text-base">${displayName}</h3>
+                    <button onclick="${appData.isStudentMode ? '' : `cycleStudentLevel('${student.id}')`}" 
+                            class="text-[10px] font-bold px-2 py-0.5 rounded shadow-2xs transition ${appData.isStudentMode ? 'cursor-default' : 'hover:scale-105 cursor-pointer'}" 
+                            style="background-color: ${levelObj.bg}; color: ${levelObj.color}; border: 1px solid ${levelObj.color}40;"
+                            title="${appData.isStudentMode ? '' : 'Klicken zum Wechseln der Niveaustufe'}">
+                      ${levelObj.label}
+                    </button>
+                  </div>
+                  <p class="text-[11px] text-slate-400">Kurs: <span class="text-slate-600 font-medium">${course.name}</span></p>
+                </div>
+              </div>
+
+              <!-- Schnellregler für Fehltage & Notizen-Schaltfläche (nur Lehrkraft) -->
+              <div class="teacher-only flex items-center gap-2 flex-wrap">
+                <div class="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-2 py-1 gap-1.5 text-xs">
+                  <span class="text-slate-500 font-medium text-[11px]"><i class="fa-solid fa-notes-medical text-rose-500 mr-1"></i>Fehltage:</span>
+                  <button onclick="decrementAbsence('${student.id}')" class="w-5 h-5 flex items-center justify-center bg-white hover:bg-slate-100 rounded border border-slate-200 font-bold text-slate-600 text-[10px] transition" title="Fehltag abziehen">-</button>
+                  <span class="font-bold text-slate-800 font-mono text-xs px-1">${student.absenceCount || 0}</span>
+                  <button onclick="incrementAbsence('${student.id}')" class="w-5 h-5 flex items-center justify-center bg-white hover:bg-slate-100 rounded border border-slate-200 font-bold text-slate-600 text-[10px] transition" title="Fehltag hinzufügen">+</button>
+                </div>
+                <button onclick="openNoteModal('${student.id}')" class="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition shadow-2xs">
+                  <i class="fa-solid fa-pen-to-square text-amber-600"></i>
+                  <span>${student.note ? 'Notiz bearbeiten' : 'Notiz verfassen'}</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Notizenbereich für Lehrkräfte -->
+            <div class="teacher-only pt-2 border-t border-slate-100">
+              ${student.note ? `
+                <div onclick="openNoteModal('${student.id}')" class="p-3 bg-amber-50/90 border border-amber-200/90 rounded-xl text-xs text-amber-950 cursor-pointer hover:bg-amber-100/90 transition shadow-2xs flex items-start gap-2.5">
+                  <i class="fa-solid fa-note-sticky text-amber-600 text-sm mt-0.5 shrink-0"></i>
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center justify-between gap-1 mb-0.5">
+                      <span class="font-bold text-[11px] uppercase tracking-wider text-amber-800 flex items-center gap-1">
+                        <span>Pädagogische Notiz / Beobachtung</span>
+                        <i class="fa-solid fa-shield-halved text-[9px] text-amber-600" title="Im Smartboard-Modus geschützt"></i>
+                      </span>
+                      <span class="text-[10px] text-amber-700 underline font-medium">Klicken zum Bearbeiten</span>
+                    </div>
+                    <p class="whitespace-pre-wrap leading-relaxed text-slate-800 font-normal">${student.note}</p>
+                  </div>
+                </div>
+              ` : `
+                <div onclick="openNoteModal('${student.id}')" class="p-2.5 bg-slate-50 border border-dashed border-slate-300 rounded-xl text-xs text-slate-500 cursor-pointer hover:border-amber-400 hover:text-amber-800 hover:bg-amber-50/50 transition flex items-center justify-between">
+                  <span class="flex items-center gap-2">
+                    <i class="fa-solid fa-comment-dots text-slate-400"></i>
+                    <span>Keine Notiz für dieses Kind hinterlegt.</span>
+                  </span>
+                  <span class="font-semibold text-xs text-emerald-600 hover:underline">+ Notiz hinzufügen</span>
+                </div>
+              `}
+            </div>
+          </div>
+        `;
+      }
+
+      course.tasks.forEach(task => {
+        const key = `${student.id}_${task.id}`;
+        const currentStatusId = course.progress[key] || appData.statuses[0]?.id;
+        const statusObj = appData.statuses.find(s => s.id === currentStatusId) || appData.statuses[0];
+
+        const card = document.createElement('div');
+        card.className = 'bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs flex flex-col justify-between gap-3';
+        card.innerHTML = `
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-[10px] font-bold px-2 py-0.5 rounded-md" style="background-color: ${levelObj.bg}; color: ${levelObj.color};">
+                ${levelObj.icon} ${levelObj.label}
+              </span>
+              ${student.absenceCount > 0 && !appData.isStudentMode ? `<span class="text-[10px] text-rose-600 font-semibold"><i class="fa-solid fa-notes-medical mr-0.5"></i>${student.absenceCount} Fehltage</span>` : ''}
+            </div>
+            <h4 class="font-bold text-slate-800 text-sm">${task.title}</h4>
+            <p class="text-xs text-slate-400 mt-0.5">Status per Dropdown festlegen</p>
+          </div>
+          <div class="flex items-center justify-between gap-2">
+            <button onclick="openStatusPopover(event, '${student.id}', '${task.id}')" 
+                    class="status-cell-btn text-xs font-semibold px-2.5 py-1 rounded-lg transition hover:scale-105 active:scale-95 flex items-center gap-1.5 cursor-pointer shadow-2xs" 
+                    style="background-color: ${statusObj.color}22; color: ${statusObj.color}; border: 1px solid ${statusObj.color}55;"
+                    title="Status per Dropdown wählen">
+              <span class="w-2 h-2 rounded-full" style="background-color: ${statusObj.color}"></span>
+              <span>${statusObj.label} (${statusObj.short})</span>
+              <i class="fa-solid fa-chevron-down text-[9px] opacity-70"></i>
+            </button>
+            <button onclick="cycleStatusStep('${student.id}', '${task.id}')" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition" title="Zur nächsten Stufe">
+              Weiter <i class="fa-solid fa-arrow-right ml-1"></i>
+            </button>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+
+      renderMultiCourseSummary(student);
+    }
+
+    function renderMultiCourseSummary(activeStudent) {
+      const container = document.getElementById('multiCourseSummaryContainer');
+      if (!container) return;
+
+      const normName = activeStudent.name.trim().toLowerCase();
+
+      const studentCourses = [];
+      appData.courses.forEach(c => {
+        const found = c.students.find(s => s.name.trim().toLowerCase() === normName || s.id === activeStudent.id);
+        if (found) {
+          studentCourses.push({
+            course: c,
+            studentData: found
+          });
+        }
+      });
+
+      const summaryCard = document.createElement('div');
+      summaryCard.className = 'bg-white rounded-2xl border border-slate-200 p-4 shadow-xs flex flex-col gap-3.5';
+
+      let coursesHtml = '';
+      studentCourses.forEach(entry => {
+        const c = entry.course;
+        const s = entry.studentData;
+        const levelObj = LEVEL_CONFIG[s.level || 'aufsteiger'] || LEVEL_CONFIG.aufsteiger;
+
+        let tasksPills = '';
+        if (c.tasks.length === 0) {
+          tasksPills = '<span class="text-[11px] text-slate-400">Keine Materialien hinterlegt</span>';
+        } else {
+          c.tasks.forEach(t => {
+            const key = `${s.id}_${t.id}`;
+            const stId = c.progress[key] || appData.statuses[0]?.id;
+            const stObj = appData.statuses.find(x => x.id === stId) || appData.statuses[0];
+            tasksPills += `
+              <div class="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md border" style="background-color: ${stObj.color}15; border-color: ${stObj.color}40; color: ${stObj.color};">
+                <span class="font-medium text-slate-700">${t.title}:</span>
+                <span class="font-bold">${stObj.short}</span>
+              </div>
+            `;
+          });
+        }
+
+        coursesHtml += `
+          <div class="p-3 bg-slate-50 border border-slate-200/80 rounded-xl flex flex-col gap-2">
+            <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/60 pb-2">
+              <div class="flex items-center gap-2">
+                <span class="font-bold text-slate-900 text-xs sm:text-sm"><i class="fa-solid fa-folder text-emerald-600 mr-1.5"></i>${c.name}</span>
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded" style="background-color: ${levelObj.bg}; color: ${levelObj.color}; border: 1px solid ${levelObj.color}40;">
+                  ${levelObj.icon} ${levelObj.label}
+                </span>
+              </div>
+              <div class="flex items-center gap-2 text-[11px] text-slate-500">
+                ${!appData.isStudentMode ? `
+                  <span class="font-semibold ${s.absenceCount > 0 ? 'text-rose-600' : 'text-slate-500'}">
+                    <i class="fa-solid fa-notes-medical mr-1"></i>${s.absenceCount || 0} Fehltage
+                  </span>
+                ` : ''}
+              </div>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-1.5 pt-0.5">
+              ${tasksPills}
+            </div>
+
+            ${(!appData.isStudentMode && s.note) ? `
+              <div class="mt-1 p-2 bg-amber-50/80 border border-amber-200/70 text-amber-950 rounded-lg text-[11px] leading-snug">
+                <i class="fa-solid fa-comment-dots text-amber-600 mr-1"></i>
+                <span class="font-semibold">Lehrkraft-Notiz:</span> ${s.note}
+              </div>
+            ` : ''}
+          </div>
+        `;
+      });
+
+      summaryCard.innerHTML = `
+        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
+          <div>
+            <div class="flex items-center gap-2">
+              <h3 class="font-bold text-slate-900 text-sm sm:text-base flex items-center gap-1.5">
+                <i class="fa-solid fa-comments text-indigo-600"></i>
+                <span>Elternsprechtags-Berater: Gesamtübersicht</span>
+              </h3>
+              <span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-indigo-100 text-indigo-800">
+                ${studentCourses.length} ${studentCourses.length === 1 ? 'Kurs' : 'Kurse'}
+              </span>
+            </div>
+            <p class="text-[11px] text-slate-500">Lernstände und Notizen von <strong class="text-slate-800">${formatStudentDisplayName(activeStudent.name)}</strong> über alle Kurse hinweg.</p>
+          </div>
+          <button onclick="window.print()" class="px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition shadow-2xs">
+            <i class="fa-solid fa-print text-slate-500"></i> Drucken
+          </button>
+        </div>
+
+        <div class="flex flex-col gap-2.5">
+          ${coursesHtml}
+        </div>
+      `;
+
+      container.appendChild(summaryCard);
+    }
+
+    function renderStatusSettingsList() {
+      const list = document.getElementById('statusList');
+      list.innerHTML = '';
+      appData.statuses.forEach((st) => {
+        const item = document.createElement('div');
+        item.className = 'flex items-center justify-between p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs';
+        item.innerHTML = `
+          <div class="flex items-center gap-2">
+            <span class="w-3.5 h-3.5 rounded-full" style="background-color: ${st.color}"></span>
+            <span class="font-semibold text-slate-800">${st.label}</span>
+            <span class="text-slate-400 font-mono text-[10px]">(${st.short})</span>
+          </div>
+          <button onclick="deleteCustomStatusPrompt('${st.id}')" class="text-slate-300 hover:text-rose-500 transition p-1" title="Löschen">
+            <i class="fa-solid fa-trash"></i>
+          </button>
+        `;
+        list.appendChild(item);
+      });
+    }
+
+    function addCustomStatus() {
+      const label = document.getElementById('newStatusLabel').value.trim();
+      const short = document.getElementById('newStatusShort').value.trim();
+      const color = document.getElementById('newStatusColor').value;
+
+      if (!label || !short) {
+        showToast('Bitte Name und Kürzel eingeben');
+        return;
+      }
+
+      const newId = 'stat_' + Date.now();
+      appData.statuses.push({ id: newId, label, short, color });
+      document.getElementById('newStatusLabel').value = '';
+      document.getElementById('newStatusShort').value = '';
+
+      saveToDB();
+      renderAll();
+    }
+
+    function deleteCustomStatusPrompt(statusId) {
+      if (appData.statuses.length <= 1) {
+        showToast('Mindestens eine Stufe muss erhalten bleiben');
+        return;
+      }
+      appData.statuses = appData.statuses.filter(s => s.id !== statusId);
+      saveToDB();
+      renderAll();
+    }
+
+    function addStudent() {
+      const course = getActiveCourse();
+      const input = document.getElementById('newStudentName');
+      const val = input.value.trim();
+      if (!val || !course) return;
+
+      const names = val.split(',').map(n => n.trim()).filter(n => n.length > 0);
+      names.forEach(name => {
+        course.students.push({
+          id: 's_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+          name: name,
+          level: 'aufsteiger',
+          absenceCount: 0,
+          note: '',
+          customOrder: course.students.length
+        });
+      });
+
+      input.value = '';
+      closeModal('addStudentModal');
+      saveToDB();
+      renderAll();
+    }
+
+    function deleteStudentPrompt(id) {
+      const course = getActiveCourse();
+      if (!course) return;
+      const student = course.students.find(s => s.id === id);
+      showCustomConfirm(
+        'Kind entfernen',
+        `Möchtest du "${student?.name}" wirklich aus diesem Kurs entfernen?`,
+        () => {
+          course.students = course.students.filter(s => s.id !== id);
+          Object.keys(course.progress).forEach(k => {
+            if (k.startsWith(id + '_')) delete course.progress[k];
+          });
+          saveToDB();
+          renderAll();
+          showToast('Kind entfernt');
+        }
+      );
+    }
+
+    function addTask() {
+      const course = getActiveCourse();
+      const input = document.getElementById('newTaskName');
+      const title = input.value.trim();
+      if (!title || !course) return;
+
+      course.tasks.push({
+        id: 't_' + Date.now(),
+        title: title
+      });
+
+      input.value = '';
+      closeModal('addTaskModal');
+      saveToDB();
+      renderAll();
+    }
+
+    function deleteTaskPrompt(id) {
+      const course = getActiveCourse();
+      if (!course) return;
+      const task = course.tasks.find(t => t.id === id);
+      showCustomConfirm(
+        'Material entfernen',
+        `Möchtest du "${task?.title}" wirklich entfernen? Alle zugehörigen Einträge werden gelöscht.`,
+        () => {
+          course.tasks = course.tasks.filter(t => t.id !== id);
+          Object.keys(course.progress).forEach(k => {
+            if (k.endsWith('_' + id)) delete course.progress[k];
+          });
+          saveToDB();
+          renderAll();
+          showToast('Material entfernt');
+        }
+      );
+    }
+
+    function exportExcel() {
+      const course = getActiveCourse();
+      if (!course || course.students.length === 0) {
+        showToast('Keine Daten für den aktuellen Kurs');
+        return;
+      }
+
+      const sortedStudents = getSortedStudents(course.students);
+      const headers = ['Schülername', 'Niveau', 'Fehltage', ...course.tasks.map(t => t.title), 'Bemerkung'];
+      const rows = [headers];
+
+      sortedStudents.forEach(s => {
+        const levelLabel = LEVEL_CONFIG[s.level || 'aufsteiger']?.label || 'Aufsteiger';
+        const row = [s.name, levelLabel, s.absenceCount || 0];
+        course.tasks.forEach(t => {
+          const key = `${s.id}_${t.id}`;
+          const statusId = course.progress[key] || appData.statuses[0]?.id;
+          const statusObj = appData.statuses.find(st => st.id === statusId);
+          row.push(statusObj ? statusObj.label : '');
+        });
+        row.push(s.note || '');
+        rows.push(row);
+      });
+
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+
+      ws['!cols'] = [
+        { wch: 25 },
+        { wch: 14 },
+        { wch: 10 },
+        ...course.tasks.map(t => ({ wch: Math.max(t.title.length + 3, 14) })),
+        { wch: 30 }
+      ];
+
+      XLSX.utils.book_append_sheet(wb, ws, course.name.slice(0, 31));
+      const cleanName = course.name.replace(/[^a-zA-Z0-9äöüÄÖÜß]/g, '_');
+      XLSX.writeFile(wb, `${cleanName}_Lernfortschritt_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      showToast('Excel Datei erstellt');
+    }
+
+    function exportPDF() {
+      const course = getActiveCourse();
+      if (!course || course.students.length === 0) {
+        showToast('Keine Daten im aktuellen Kurs');
+        return;
+      }
+
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+
+      const sortedStudents = getSortedStudents(course.students);
+      const headers = ['Schülername', 'Niveau', ...course.tasks.map(t => t.title), 'Fehltage'];
+
+      const bodyData = sortedStudents.map(s => {
+        const levelLabel = LEVEL_CONFIG[s.level || 'aufsteiger']?.label || 'Aufsteiger';
+        const row = [s.name, levelLabel];
+        course.tasks.forEach(t => {
+          const key = `${s.id}_${t.id}`;
+          const statusId = course.progress[key] || appData.statuses[0]?.id;
+          const statusObj = appData.statuses.find(st => st.id === statusId);
+          row.push(statusObj ? statusObj.short : '-');
+        });
+        row.push(s.absenceCount || 0);
+        return row;
+      });
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(15);
+      doc.setTextColor(15, 23, 42);
+      doc.text(`Kurs-Dokumentation: ${course.name}`, 40, 40);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.setTextColor(100, 116, 139);
+      doc.text(`Erstellt am ${new Date().toLocaleDateString('de-DE')} | ${sortedStudents.length} Kinder`, 40, 56);
+
+      doc.autoTable({
+        startY: 68,
+        head: [headers],
+        body: bodyData,
+        theme: 'grid',
+        styles: { font: 'helvetica', fontSize: 9, cellPadding: 4.5, valign: 'middle' },
+        headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: [248, 250, 252] },
+        columnStyles: { 0: { cellWidth: 130, fontStyle: 'bold' } },
+        margin: { left: 40, right: 40 }
+      });
+
+      const cleanName = course.name.replace(/[^a-zA-Z0-9äöüÄÖÜß]/g, '_');
+      doc.save(`${cleanName}_Dokumentation_${new Date().toISOString().slice(0, 10)}.pdf`);
+      showToast('PDF Tabelle heruntergeladen');
+    }
+
+    function exportCSV() {
+      const course = getActiveCourse();
+      if (!course || course.students.length === 0) {
+        showToast('Keine Kinder im aktuellen Kurs');
+        return;
+      }
+
+      let csv = '\uFEFF';
+      const headers = ['Schülername', 'Niveau', 'Fehltage', ...course.tasks.map(t => `"${t.title.replace(/"/g, '""')}"`), 'Bemerkung'];
+      csv += headers.join(';') + '\r\n';
+
+      const sortedStudents = getSortedStudents(course.students);
+      sortedStudents.forEach(s => {
+        const levelLabel = LEVEL_CONFIG[s.level || 'aufsteiger']?.label || 'Aufsteiger';
+        const row = [
+          `"${s.name.replace(/"/g, '""')}"`,
+          `"${levelLabel}"`,
+          s.absenceCount || 0
+        ];
+        course.tasks.forEach(t => {
+          const key = `${s.id}_${t.id}`;
+          const statusId = course.progress[key] || appData.statuses[0]?.id;
+          const statusObj = appData.statuses.find(st => st.id === statusId);
+          row.push(`"${(statusObj ? statusObj.label : '').replace(/"/g, '""')}"`);
+        });
+        row.push(`"${(s.note || '').replace(/"/g, '""')}"`);
+        csv += row.join(';') + '\r\n';
+      });
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      const cleanName = course.name.replace(/[^a-zA-Z0-9äöüÄÖÜß]/g, '_');
+      link.download = `${cleanName}_Lernfortschritt_${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      showToast('CSV heruntergeladen');
+    }
+
+    function importCSVFile(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const text = e.target.result;
+          parseAndLoadCSVIntoActiveCourse(text);
+          await saveToDB();
+          renderAll();
+          closeModal('exportModal');
+          showToast('CSV erfolgreich eingespielt');
+        } catch (err) {
+          showToast('Fehler beim CSV-Import');
+          console.error(err);
+        }
+      };
+      reader.readAsText(file, 'UTF-8');
+      event.target.value = '';
+    }
+
+    function parseAndLoadCSVIntoActiveCourse(content) {
+      const course = getActiveCourse();
+      if (!course) return;
+
+      const rawLines = content.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+      if (rawLines.length < 2) return;
+
+      const delimiter = rawLines[0].includes(';') ? ';' : (rawLines[0].includes('\t') ? '\t' : ',');
+
+      const splitRow = (rowStr) => {
+        return rowStr.split(delimiter).map(cell => {
+          let c = cell.trim();
+          if (c.startsWith('"') && c.endsWith('"')) c = c.slice(1, -1);
+          return c.replace(/""/g, '"');
+        });
+      };
+
+      const headers = splitRow(rawLines[0]);
+      let taskStartIndex = 1;
+      let hasLevel = false;
+      let hasAbsence = false;
+
+      if (headers[1] && headers[1].toLowerCase().includes('niveau')) {
+        taskStartIndex++;
+        hasLevel = true;
+      }
+      if (headers[taskStartIndex] && headers[taskStartIndex].toLowerCase().includes('fehltage')) {
+        taskStartIndex++;
+        hasAbsence = true;
+      }
+
+      const taskNames = headers.slice(taskStartIndex).filter(h => !h.toLowerCase().includes('bemerkung'));
+
+      course.tasks = taskNames.map((name, idx) => ({
+        id: 't_import_' + idx,
+        title: name || `Material ${idx + 1}`
+      }));
+
+      course.students = [];
+      course.progress = {};
+      const foundStatuses = new Set();
+
+      for (let i = 1; i < rawLines.length; i++) {
+        const cols = splitRow(rawLines[i]);
+        const studentName = cols[0];
+        if (!studentName) continue;
+
+        const sId = 's_imp_' + i;
+        let lvl = 'aufsteiger';
+        let abs = 0;
+
+        if (hasLevel && cols[1]) {
+          const lVal = cols[1].toLowerCase();
+          if (lVal.includes('basis')) lvl = 'basis';
+          else if (lVal.includes('gipfel')) lvl = 'gipfel';
+        }
+        if (hasAbsence) {
+          abs = parseInt(cols[hasLevel ? 2 : 1]) || 0;
+        }
+
+        course.students.push({
+          id: sId,
+          name: studentName,
+          level: lvl,
+          absenceCount: abs,
+          note: ''
+        });
+
+        course.tasks.forEach((task, tIdx) => {
+          const cellVal = (cols[taskStartIndex + tIdx] || '').trim();
+          if (cellVal) {
+            foundStatuses.add(cellVal);
+            course.progress[`${sId}_${task.id}`] = 'stat_' + encodeURIComponent(cellVal).replace(/%/g, '_');
+          }
+        });
+      }
+
+      foundStatuses.forEach((val) => {
+        const existing = appData.statuses.find(s => s.label === val || s.short === val);
+        if (!existing) {
+          const color = colorPalette[appData.statuses.length % colorPalette.length];
+          appData.statuses.push({
+            id: 'stat_' + encodeURIComponent(val).replace(/%/g, '_'),
+            label: val,
+            short: val.length > 4 ? val.slice(0, 3) : val,
+            color: color
+          });
+        }
+      });
+    }
+
+    function confirmResetCurrentCourse() {
+      const course = getActiveCourse();
+      if (!course) return;
+      showCustomConfirm(
+        'Kurs leeren',
+        `Möchtest du wirklich alle Schüler und Materialien aus "${course.name}" entfernen?`,
+        () => {
+          course.students = [];
+          course.tasks = [{ id: 't_1', title: 'Material 1' }];
+          course.progress = {};
+          saveToDB();
+          renderAll();
+          closeModal('exportModal');
+          showToast('Kurs geleert');
+        }
+      );
+    }
+
+    function showCustomConfirm(title, text, onOk) {
+      const modal = document.getElementById('confirmModal');
+      document.getElementById('confirmModalTitle').textContent = title;
+      document.getElementById('confirmModalText').textContent = text;
+      
+      const okBtn = document.getElementById('confirmOkBtn');
+      const cancelBtn = document.getElementById('confirmCancelBtn');
+
+      const cleanup = () => {
+        modal.classList.add('hidden');
+        okBtn.onclick = null;
+        cancelBtn.onclick = null;
+      };
+
+      okBtn.onclick = () => {
+        cleanup();
+        onOk();
+      };
+      cancelBtn.onclick = cleanup;
+      modal.classList.remove('hidden');
+    }
+
+    function handleSearch(val) {
+      searchQuery = val;
+      updateCompactHeaderInfo();
+      renderTable();
+    }
+
+    function switchView(view) {
+      currentView = view;
+      const tableElem = document.getElementById('tableView');
+      const cardElem = document.getElementById('cardView');
+      const tBtn = document.getElementById('viewTableBtn');
+      const cBtn = document.getElementById('viewCardBtn');
+
+      if (view === 'table') {
+        tableElem.classList.remove('hidden');
+        cardElem.classList.add('hidden');
+        tBtn.classList.add('bg-white', 'text-slate-800', 'shadow-xs');
+        tBtn.classList.remove('text-slate-600');
+        cBtn.classList.remove('bg-white', 'text-slate-800', 'shadow-xs');
+        cBtn.classList.add('text-slate-600');
+      } else {
+        tableElem.classList.add('hidden');
+        cardElem.classList.remove('hidden');
+        cBtn.classList.add('bg-white', 'text-slate-800', 'shadow-xs');
+        cBtn.classList.remove('text-slate-600');
+        tBtn.classList.remove('bg-white', 'text-slate-800', 'shadow-xs');
+        tBtn.classList.add('text-slate-600');
+        renderCardView();
+      }
+    }
+
+    function openModal(id) {
+      const el = document.getElementById(id);
+      if (el) el.classList.remove('hidden');
+    }
+    
+    function closeModal(id) {
+      const el = document.getElementById(id);
+      if (el) el.classList.add('hidden');
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      const msgElem = document.getElementById('toastMsg');
+      if (!toast || !msgElem) return;
+      msgElem.textContent = msg;
+      toast.classList.remove('translate-y-20', 'opacity-0');
+      toast.classList.add('translate-y-0', 'opacity-100');
+      setTimeout(() => {
+        toast.classList.add('translate-y-20', 'opacity-0');
+        toast.classList.remove('translate-y-0', 'opacity-100');
+      }, 2200);
+    }
+  </script>
+</body>
+</html>
