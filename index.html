@@ -4,10 +4,23 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Lernfortschritts-Tracker</title>
+
+  <!-- PWA & iOS Safari Vollbild-App Metadaten -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="LernTracker">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#059669">
+
+  <!-- Eingebettetes Web-App-Manifest (Data-URI) -->
+  <link rel="manifest" href="data:application/manifest+json,%7B%22name%22%3A%22Lernfortschritts-Tracker%22%2C%22short_name%22%3A%22LernTracker%22%2C%22start_url%22%3A%22.%2F%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%23f8fafc%22%2C%22theme_color%22%3A%22%23059669%22%7D">
+
+  <!-- Apple Touch Icon (Hochauflösendes Vektor-Icon als SVG Data-URI) -->
+  <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='128' fill='%23059669'/%3E%3Cpath d='M256 128L64 224l192 96 192-96-192-96zm-128 152v64c0 48 57 96 128 96s128-48 128-96v-64l-128 64-128-64z' fill='%23ffffff'/%3E%3C/svg%3E">
+
+  <!-- Externe Bibliotheken (werden vom Service Worker dauerhaft gecacht) -->
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  
-  <!-- Bibliotheken für Excel und PDF Export -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
@@ -18,13 +31,11 @@
       -webkit-tap-highlight-color: transparent;
     }
     
-    /* Nahtlose Rand-zu-Rand-Skalierung ohne Freiflächen */
     #appWrapper {
       transform-origin: top left;
       transition: transform 0.15s ease, width 0.15s ease, height 0.15s ease;
     }
     
-    /* Flexbox-Gefüge: Tabelle füllt immer die gesamte Resthöhe ohne Leerfläche */
     .table-container {
       flex: 1 1 0%;
       min-height: 0;
@@ -50,7 +61,6 @@
       background: #cbd5e1;
       border-radius: 4px;
     }
-    /* Smartboard Modus Akzente */
     body.student-mode-active {
       background-color: #f8fafc;
     }
@@ -66,7 +76,7 @@
     
     <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs shrink-0 transition-all duration-200" id="mainHeader">
       
-      <!-- Normaler, voller Header (volle Breite ohne künstliche Begrenzung) -->
+      <!-- Normaler Header -->
       <div id="fullHeaderBar" class="w-full px-4 sm:px-6 py-2.5 flex flex-wrap items-center justify-between gap-2.5 transition-all duration-200">
         <div class="flex items-center gap-2.5">
           <div class="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-base shadow-sm">
@@ -75,16 +85,21 @@
           <div>
             <div class="flex items-center gap-2">
               <h1 class="font-bold text-slate-900 leading-tight text-sm sm:text-base">Lernfortschritts-Tracker</h1>
-              <!-- Versionsbadge mit Klickfunktion für Changelog -->
-              <button onclick="openModal('changelogModal')" class="text-[11px] font-mono font-bold px-2 py-0.5 rounded-lg bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border border-emerald-300 transition cursor-pointer flex items-center gap-1 shadow-2xs" title="Versionshinweise und Changelog ansehen">
-                <span>v1.4.7</span>
+              <button onclick="openModal('changelogModal')" class="text-[11px] font-mono font-bold px-2 py-0.5 rounded-lg bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border border-emerald-300 transition cursor-pointer flex items-center gap-1 shadow-2xs" title="Versionshinweise ansehen">
+                <span>v1.4.8</span>
                 <i class="fa-solid fa-circle-info text-[9px] text-emerald-600"></i>
               </button>
               <span id="studentModeBadge" class="hidden text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md bg-indigo-100 text-indigo-800 border border-indigo-200">
                 <i class="fa-solid fa-chalkboard-user mr-1"></i> Smartboard-Modus
               </span>
             </div>
-            <p class="text-[11px] text-slate-500" id="storageStatusText">Lokale IndexedDB aktiv</p>
+            <div class="flex items-center gap-2 text-[11px] text-slate-500">
+              <span id="storageStatusText">Lokale IndexedDB aktiv</span>
+              <span class="text-slate-300">•</span>
+              <span id="pwaStatusText" class="text-slate-400 flex items-center gap-1">
+                <i class="fa-solid fa-cloud-arrow-down text-[10px]"></i> Prüfe Offline-Cache...
+              </span>
+            </div>
           </div>
         </div>
 
@@ -104,7 +119,7 @@
           </div>
 
           <!-- Smartboard-Modus Schalter -->
-          <button id="toggleStudentModeBtn" onclick="toggleStudentMode()" class="px-3 py-1.5 rounded-xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-900 text-xs font-semibold flex items-center gap-1.5 transition shadow-xs" title="Datenschutz-Modus für Präsentation am Beamer/Smartboard">
+          <button id="toggleStudentModeBtn" onclick="toggleStudentMode()" class="px-3 py-1.5 rounded-xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-900 text-xs font-semibold flex items-center gap-1.5 transition shadow-xs" title="Datenschutz-Modus für Präsentation">
             <i class="fa-solid fa-chalkboard-user text-indigo-600"></i>
             <span id="studentModeBtnText">Schülermodus</span>
           </button>
@@ -124,19 +139,18 @@
             <i class="fa-solid fa-sliders"></i>
           </button>
 
-          <!-- Zentrales Export und Import Menü -->
-          <button onclick="openModal('exportModal')" class="teacher-only px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold flex items-center gap-1.5 transition shadow-xs" title="Daten exportieren oder einspielen">
+          <!-- Export und Import Menü -->
+          <button onclick="openModal('exportModal')" class="teacher-only px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold flex items-center gap-1.5 transition shadow-xs" title="Daten sichern">
             <i class="fa-solid fa-file-export text-emerald-400"></i>
             <span>Export & Import</span>
           </button>
 
-          <!-- 1-Klick Kompaktmodus (Alles einklappen) -->
-          <button onclick="toggleAllBars()" id="toggleAllBarsBtn" class="px-2.5 py-1.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition shadow-xs" title="Leisten einklappen für maximale Tabellenhöhe">
+          <!-- Kompaktmodus Schalter -->
+          <button onclick="toggleAllBars()" id="toggleAllBarsBtn" class="px-2.5 py-1.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition shadow-xs" title="Leisten einklappen">
             <i class="fa-solid fa-arrows-up-to-line text-slate-500"></i>
             <span class="hidden xl:inline">Kompakt</span>
           </button>
 
-          <!-- Einzeltaste: Nur oberen Header einklappen -->
           <button onclick="toggleHeaderCollapse()" class="p-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600 text-xs transition shadow-xs" title="Kopfbereich einklappen">
             <i class="fa-solid fa-chevron-up"></i>
           </button>
@@ -149,41 +163,34 @@
           <i class="fa-solid fa-graduation-cap text-emerald-600 shrink-0"></i>
           <span class="font-bold text-slate-900 truncate" id="compactCourseTitle">Kurs</span>
           <button onclick="openModal('changelogModal')" class="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 border border-emerald-300 shrink-0" title="Changelog">
-            v1.4.7
+            v1.4.8
           </button>
-          <span id="compactStudentModeBadge" class="hidden text-[10px] font-bold px-1.5 py-0.2 rounded bg-indigo-100 text-indigo-800 shrink-0">
-            Smartboard
-          </span>
         </div>
 
         <div class="flex items-center gap-1.5 shrink-0">
-          <!-- Mini Zoom im Kompaktmodus -->
           <div class="flex items-center bg-white px-1.5 py-0.5 rounded-lg border border-slate-200 text-[11px] font-mono">
             <button onclick="adjustZoom(-0.1)" class="px-1 hover:text-emerald-600" title="A-"><i class="fa-solid fa-minus"></i></button>
             <span id="compactZoomLabel" class="px-1 font-semibold text-slate-700">100%</span>
             <button onclick="adjustZoom(0.1)" class="px-1 hover:text-emerald-600" title="A+"><i class="fa-solid fa-plus"></i></button>
           </div>
 
-          <!-- Mini Schülermodus Schalter -->
-          <button onclick="toggleStudentMode()" class="px-2 py-0.5 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-900 text-[11px] font-semibold flex items-center gap-1" title="Smartboard-Modus umschalten">
+          <button onclick="toggleStudentMode()" class="px-2 py-0.5 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-900 text-[11px] font-semibold flex items-center gap-1" title="Smartboard-Modus">
             <i class="fa-solid fa-chalkboard-user text-indigo-600"></i>
           </button>
 
-          <!-- Ausklapp-Knopf für Header -->
           <button onclick="toggleHeaderCollapse()" class="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[11px] flex items-center gap-1 shadow-2xs transition">
             <i class="fa-solid fa-chevron-down"></i>
-            <span>Menü ausklappen</span>
+            <span>Menü</span>
           </button>
         </div>
       </div>
 
-      <!-- Kurse Reiter (Überlappungssicher mit shrink-0 und flex-nowrap) -->
+      <!-- Kurse Reiter -->
       <div id="courseTabsBar" class="w-full px-4 sm:px-6 flex flex-nowrap items-center gap-2 overflow-x-auto pt-1.5 pb-1.5 border-t border-slate-100 transition-all duration-200">
         <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider shrink-0 mr-1 flex items-center">
           <i class="fa-solid fa-folder-open text-emerald-600 mr-1.5"></i> Kurse:
         </span>
         <div id="courseTabsList" class="flex items-center gap-1.5 shrink-0">
-          <!-- Dynamische Reiter für Kurse -->
         </div>
         <button onclick="openModal('addCourseModal')" class="teacher-only px-2.5 py-1 rounded-lg border border-dashed border-slate-300 text-slate-600 hover:border-emerald-500 hover:text-emerald-600 text-xs font-medium flex items-center gap-1 shrink-0 whitespace-nowrap transition">
           <i class="fa-solid fa-plus text-[10px]"></i> Kurs anlegen
@@ -191,12 +198,11 @@
       </div>
     </header>
 
-    <!-- Hauptarbeitsbereich: Füllt die gesamte Bildschirmbreite -->
+    <!-- Hauptarbeitsbereich -->
     <main class="flex-1 w-full p-3 sm:p-4 flex flex-col gap-3 min-h-0 overflow-hidden">
 
-      <!-- FLÄCHE 2: DIE AKTIONSLEISTE & BUTTONS (EINKLAPPBAR) -->
+      <!-- Aktionsleiste -->
       <div id="actionBarWrapper" class="shrink-0 transition-all duration-200">
-        <!-- Volle Aktionsleiste -->
         <div id="fullActionBar" class="bg-white p-3 rounded-2xl border border-slate-200 shadow-xs flex flex-wrap items-center justify-between gap-2.5 transition-all duration-200">
           <div class="teacher-only flex items-center gap-2 flex-wrap">
             <button onclick="openModal('addStudentModal')" class="px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold flex items-center gap-1.5 transition">
@@ -205,16 +211,14 @@
             <button onclick="openModal('addTaskModal')" class="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center gap-1.5 transition">
               <i class="fa-solid fa-plus"></i> Material
             </button>
-            <!-- 1-Klick Schalter: Alle Notizen ein-/ausklappen -->
-            <button id="toggleNotesBtn" onclick="toggleAllNotes()" class="px-3 py-1.5 rounded-xl border border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-semibold flex items-center gap-1.5 transition" title="Alle Notizen in der Tabelle auf einen Klick ein- oder ausblenden">
+            <button id="toggleNotesBtn" onclick="toggleAllNotes()" class="px-3 py-1.5 rounded-xl border border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-semibold flex items-center gap-1.5 transition" title="Alle Notizen ein-/ausblenden">
               <i class="fa-solid fa-note-sticky text-amber-600"></i>
               <span id="toggleNotesBtnText">Notizen einblenden</span>
             </button>
           </div>
 
-          <!-- Filter, Sortierung, Niveaustufen und Suchleiste -->
+          <!-- Filter & Suche -->
           <div class="flex items-center gap-2 flex-wrap w-full sm:w-auto">
-            <!-- Sortierung nach Vor- oder Nachname oder Eigene Reihenfolge -->
             <div class="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-xl">
               <i class="fa-solid fa-arrow-down-a-z text-slate-400 text-xs"></i>
               <select id="sortSelect" onchange="changeSort(this.value)" class="bg-transparent text-xs font-medium text-slate-700 focus:outline-none cursor-pointer">
@@ -224,12 +228,11 @@
               </select>
             </div>
 
-            <!-- Niveaustufen Legende im Smartboard-Modus -->
             <div id="levelLegend" class="hidden sm:flex items-center gap-1.5 text-[11px] font-medium text-slate-500 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-xl">
               <span>Stufen:</span>
-              <span class="text-amber-700" title="Grundlegende Standards">🏕️ Basis</span>
-              <span class="text-blue-700" title="Regelstandard & Transfer">🧗 Aufsteiger</span>
-              <span class="text-emerald-700" title="Vertiefung & Experte">🏔️ Gipfel</span>
+              <span class="text-amber-700">🏕️ Basis</span>
+              <span class="text-blue-700">🧗 Aufsteiger</span>
+              <span class="text-emerald-700">🏔️ Gipfel</span>
             </div>
 
             <div class="relative flex-1 sm:w-48">
@@ -237,28 +240,25 @@
               <input type="text" id="searchInput" oninput="handleSearch(this.value)" placeholder="Suchen..." class="w-full pl-8 pr-3 py-1 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500">
             </div>
 
-            <!-- Einklapp-Knopf für Aktionsleiste -->
             <button onclick="toggleActionBarCollapse()" class="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl text-xs transition" title="Aktionsleiste einklappen">
               <i class="fa-solid fa-chevron-up"></i>
             </button>
           </div>
         </div>
 
-        <!-- Eingeklappter Zustand der Aktionsleiste -->
         <div id="compactActionBar" class="hidden bg-slate-100/80 hover:bg-slate-100 border border-slate-200/80 px-3 py-1.5 rounded-xl flex items-center justify-between text-xs text-slate-500 cursor-pointer transition" onclick="toggleActionBarCollapse()">
           <div class="flex items-center gap-2">
             <i class="fa-solid fa-sliders text-slate-400"></i>
             <span class="font-medium text-[11px] text-slate-600">Aktionen & Filter eingeklappt</span>
-            <span id="compactSearchBadge" class="hidden text-[10px] px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 font-semibold">Filter aktiv</span>
           </div>
           <div class="flex items-center gap-1 text-[11px] text-slate-600 font-semibold">
-            <span>Aktionen ausklappen</span>
+            <span>Ausklappen</span>
             <i class="fa-solid fa-chevron-down text-slate-400"></i>
           </div>
         </div>
       </div>
 
-      <!-- ANSICHT 1: Tabelle -->
+      <!-- Ansicht 1: Tabelle -->
       <div id="tableView" class="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden flex-1 flex flex-col min-h-0 w-full">
         <div class="table-container overflow-auto flex-1 min-h-0 w-full">
           <table class="w-full text-left border-collapse" id="matrixTable">
@@ -272,7 +272,7 @@
         </div>
       </div>
 
-      <!-- ANSICHT 2: Fokus Modus für Smartphone & Elternsprechtag -->
+      <!-- Ansicht 2: Fokus Modus -->
       <div id="cardView" class="hidden flex-col gap-3 flex-1 min-h-0 overflow-y-auto pr-0.5 w-full pb-8">
         <div class="flex items-center justify-between bg-white p-3 rounded-2xl border border-slate-200 shadow-xs shrink-0">
           <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Fokus Modus</span>
@@ -280,16 +280,9 @@
           </select>
         </div>
 
-        <!-- Profil & Pädagogische Notiz des Kindes im Fokus-Modus -->
-        <div id="cardStudentHeader" class="w-full">
-        </div>
-
-        <div id="cardContainer" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
-        </div>
-
-        <!-- Elternsprechtags-Bereich im Fokus-Modus -->
-        <div id="multiCourseSummaryContainer" class="mt-2 flex flex-col gap-3">
-        </div>
+        <div id="cardStudentHeader" class="w-full"></div>
+        <div id="cardContainer" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3"></div>
+        <div id="multiCourseSummaryContainer" class="mt-2 flex flex-col gap-3"></div>
       </div>
 
     </main>
@@ -301,8 +294,7 @@
       <span>Status festlegen</span>
       <button onclick="closeStatusPopover()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
     </div>
-    <div id="statusDropdownItems" class="flex flex-col gap-1 max-h-60 overflow-y-auto pt-1">
-    </div>
+    <div id="statusDropdownItems" class="flex flex-col gap-1 max-h-60 overflow-y-auto pt-1"></div>
   </div>
 
   <!-- Toast Benachrichtigung -->
@@ -311,18 +303,18 @@
     <span id="toastMsg">Gespeichert</span>
   </div>
 
-  <!-- Modal: Bemerkungen pro Schüler -->
+  <!-- Modal: Notiz -->
   <div id="noteModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-40 hidden">
     <div class="bg-white w-full max-w-md rounded-2xl p-5 shadow-2xl border border-slate-100 flex flex-col gap-3">
       <div class="flex justify-between items-center border-b border-slate-100 pb-2.5">
         <div>
           <h3 class="font-bold text-slate-900 text-sm sm:text-base" id="noteStudentTitle">Notiz zum Kind</h3>
-          <p class="text-[11px] text-amber-600 font-medium"><i class="fa-solid fa-shield-halved mr-1"></i>Nur für Lehrkraft (im Smartboard-Modus verborgen)</p>
+          <p class="text-[11px] text-amber-600 font-medium"><i class="fa-solid fa-shield-halved mr-1"></i>Nur für Lehrkraft sichtbar</p>
         </div>
         <button onclick="closeModal('noteModal')" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
       </div>
       <div>
-        <textarea id="studentNoteText" rows="4" placeholder="z. B. Braucht Lesehilfe bei Textaufgaben, Fehlzeiten am 04.09. nachreichen..." class="w-full p-3 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-slate-50"></textarea>
+        <textarea id="studentNoteText" rows="4" placeholder="z. B. Braucht Lesehilfe bei Textaufgaben..." class="w-full p-3 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-slate-50"></textarea>
       </div>
       <div class="flex justify-end gap-2 pt-1">
         <button onclick="closeModal('noteModal')" class="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100">Schließen</button>
@@ -357,7 +349,7 @@
         <button onclick="closeModal('addCourseModal')" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
       </div>
       <div>
-        <label class="block text-xs font-semibold text-slate-600 mb-1">Klasse und Fach (z. B. 6a Biologie)</label>
+        <label class="block text-xs font-semibold text-slate-600 mb-1">Klasse und Fach</label>
         <input type="text" id="newCourseName" placeholder="z. B. 6a Biologie" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" onkeydown="if(event.key==='Enter') createCourse()">
         <label class="flex items-center gap-2 mt-3 text-xs text-slate-600 cursor-pointer">
           <input type="checkbox" id="copyStudentsCheckbox" checked class="rounded text-emerald-600 focus:ring-0">
@@ -371,7 +363,7 @@
     </div>
   </div>
 
-  <!-- Modal: Bestätigungsdialog -->
+  <!-- Modal: Bestätigung -->
   <div id="confirmModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 hidden">
     <div class="bg-white w-full max-w-sm rounded-2xl p-5 shadow-2xl border border-slate-100 flex flex-col gap-3">
       <h3 class="font-bold text-slate-900 text-base" id="confirmModalTitle">Bestätigung</h3>
@@ -393,7 +385,7 @@
       <div>
         <label class="block text-xs font-semibold text-slate-600 mb-1">Vor- und Nachname</label>
         <input type="text" id="newStudentName" placeholder="z. B. Mia Schmidt" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" onkeydown="if(event.key==='Enter') addStudent()">
-        <p class="text-[11px] text-slate-400 mt-1">Mehrere Kinder können durch ein Komma getrennt eingegeben werden.</p>
+        <p class="text-[11px] text-slate-400 mt-1">Mehrere Namen können mit Komma getrennt eingegeben werden.</p>
       </div>
       <div class="flex justify-end gap-2 pt-2">
         <button onclick="closeModal('addStudentModal')" class="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100">Abbrechen</button>
@@ -426,7 +418,7 @@
       <div class="flex justify-between items-center border-b border-slate-100 pb-2.5">
         <div>
           <h3 class="font-bold text-slate-900 text-base">Eigene Status-Stufen</h3>
-          <p class="text-xs text-slate-500">Definiere deine Symbole, Noten und Farben.</p>
+          <p class="text-xs text-slate-500">Definiere Symbole, Bezeichnungen und Farben.</p>
         </div>
         <button onclick="closeModal('statusModal')" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
       </div>
@@ -451,47 +443,42 @@
     </div>
   </div>
 
-  <!-- Modal: EXPORT & IMPORT ZENTRALE -->
+  <!-- Modal: Export & Import -->
   <div id="exportModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-40 hidden">
     <div class="bg-white w-full max-w-lg rounded-2xl p-5 shadow-2xl border border-slate-100 flex flex-col gap-4 max-h-[90vh] overflow-y-auto">
       <div class="flex justify-between items-center border-b border-slate-100 pb-3">
         <div>
           <h3 class="font-bold text-slate-900 text-base">Export & Import</h3>
-          <p class="text-xs text-slate-500">Wähle das passende Format für Dokumentation, Druck oder Austausch.</p>
+          <p class="text-xs text-slate-500">Wähle das Format zur Datensicherung oder zum Ausdruck.</p>
         </div>
         <button onclick="closeModal('exportModal')" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
       </div>
 
-      <!-- Export Formate -->
       <div class="flex flex-col gap-2.5">
-        <span class="text-xs font-bold text-slate-700 uppercase tracking-wider">Aktuellen Kurs exportieren</span>
+        <span class="text-xs font-bold text-slate-700 uppercase tracking-wider">Aktuellen Kurs sichern</span>
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
           <button onclick="exportExcel()" class="p-3 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl flex flex-col items-center justify-center gap-1.5 text-center transition group">
             <i class="fa-solid fa-file-excel text-emerald-600 text-xl group-hover:scale-110 transition-transform"></i>
             <span class="text-xs font-bold text-emerald-950">Excel (.xlsx)</span>
-            <span class="text-[10px] text-emerald-700">Tabellenkalkulation</span>
           </button>
           <button onclick="exportPDF()" class="p-3 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl flex flex-col items-center justify-center gap-1.5 text-center transition group">
             <i class="fa-solid fa-file-pdf text-rose-600 text-xl group-hover:scale-110 transition-transform"></i>
             <span class="text-xs font-bold text-rose-950">PDF Tabelle</span>
-            <span class="text-[10px] text-rose-700">Druckfertig DIN-A4</span>
           </button>
           <button onclick="exportCSV()" class="p-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl flex flex-col items-center justify-center gap-1.5 text-center transition group">
             <i class="fa-solid fa-file-csv text-slate-600 text-xl group-hover:scale-110 transition-transform"></i>
             <span class="text-xs font-bold text-slate-900">CSV Datei</span>
-            <span class="text-[10px] text-slate-600">Austausch & Sync</span>
           </button>
         </div>
       </div>
 
-      <!-- Import Bereich -->
       <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-xl flex flex-col gap-2 mt-1">
         <span class="text-xs font-bold text-slate-800">CSV-Klassenliste einspielen</span>
         <p class="text-[11px] text-slate-600 leading-relaxed">
-          Überträgt Namen, Materialien und Noten aus einer CSV-Datei direkt in diesen Kurs.
+          Überträgt Namen, Materialien und Notizen aus einer CSV direkt in diesen Kurs.
         </p>
         <label class="w-full py-2.5 px-3 bg-white border border-slate-300 hover:bg-slate-100 text-slate-800 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer transition shadow-xs">
-          <i class="fa-solid fa-upload text-slate-500"></i> CSV auswählen & einspielen
+          <i class="fa-solid fa-upload text-slate-500"></i> CSV auswählen
           <input type="file" id="csvFileInput" accept=".csv" onchange="importCSVFile(event)" class="hidden">
         </label>
       </div>
@@ -503,7 +490,7 @@
     </div>
   </div>
 
-  <!-- Modal: CHANGELOG & VERSIONSNOTIZEN -->
+  <!-- Modal: Changelog -->
   <div id="changelogModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 hidden">
     <div class="bg-white w-full max-w-lg rounded-2xl p-5 shadow-2xl border border-slate-100 flex flex-col gap-3 max-h-[85vh]">
       <div class="flex justify-between items-center border-b border-slate-100 pb-2.5">
@@ -512,69 +499,25 @@
             <i class="fa-solid fa-code-branch"></i>
           </div>
           <div>
-            <h3 class="font-bold text-slate-900 text-sm sm:text-base">Versionshistorie & Updates</h3>
-            <p class="text-[11px] text-slate-500">Chronologischer Überblick aller Funktionen</p>
+            <h3 class="font-bold text-slate-900 text-sm sm:text-base">Versionshistorie</h3>
+            <p class="text-[11px] text-slate-500">Überblick aller Updates</p>
           </div>
         </div>
         <button onclick="closeModal('changelogModal')" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
       </div>
 
       <div class="overflow-y-auto pr-1 flex flex-col gap-4 text-xs">
-        <!-- Version 1.4.7 -->
         <div class="border-l-2 border-emerald-500 pl-3 flex flex-col gap-1">
           <div class="flex items-center justify-between">
-            <span class="font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">v1.4.7 (Aktuell)</span>
+            <span class="font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">v1.4.8 (Aktuell)</span>
             <span class="text-slate-400 text-[10px]">Herbst 2026</span>
           </div>
-          <p class="font-semibold text-slate-800">Notizen- und Profilanzeige im Fokus-Modus</p>
+          <p class="font-semibold text-slate-800">PWA & Service-Worker Vorbereitung</p>
           <ul class="list-disc list-inside text-slate-600 space-y-0.5 leading-relaxed">
-            <li><strong>Profil- & Notizenbanner:</strong> Im Fokus-Modus wird die pädagogische Notiz des aktuell ausgewählten Schülers gut lesbar oberhalb der Materialkarten angezeigt.</li>
-            <li><strong>Direktes Bearbeiten:</strong> Mit einem Klick auf die Notizkarte öffnet sich das Notizenmodal; Änderungen werden sofort aktualisiert.</li>
-            <li><strong>Schnellregler:</strong> Fehltage und Niveaustufe lassen sich jetzt auch direkt im Fokus-Modus steuern.</li>
+            <li><strong>Offline Service Worker Registration:</strong> Automatische Registrierung von <code>sw.js</code> für 100%ige Offline-Fähigkeit via GitHub Pages.</li>
+            <li><strong>PWA Web-Manifest:</strong> Direkte Einbettung für Vollbilddarstellung ohne Browser-Adressleiste auf iPad & Smartboards.</li>
+            <li><strong>Statusanzeige:</strong> Echtzeit-Status zur Offline-Bereitschaft im Header.</li>
           </ul>
-        </div>
-
-        <!-- Version 1.4.6 -->
-        <div class="border-l-2 border-slate-300 pl-3 flex flex-col gap-1">
-          <div class="flex items-center justify-between">
-            <span class="font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">v1.4.6</span>
-            <span class="text-slate-400 text-[10px]">Herbst 2026</span>
-          </div>
-          <p class="font-semibold text-slate-800">Korrektur des abgeschnittenen untersten Namens</p>
-          <ul class="list-disc list-inside text-slate-600 space-y-0.5 leading-relaxed">
-            <li><strong>Reale Viewport-Berechnung:</strong> Skalierung nutzt <code>window.innerHeight / zoom</code> in Pixeln statt statischer <code>vh</code>-Werte.</li>
-            <li><strong>Boden-Pufferzeile:</strong> Am Tabellenende sorgt ein Abstandhalter dafür, dass der unterste Schüler auch bei Scrollbalken stets erreichbar bleibt.</li>
-          </ul>
-        </div>
-
-        <!-- Version 1.4.5 -->
-        <div class="border-l-2 border-slate-300 pl-3 flex flex-col gap-1">
-          <div class="flex items-center justify-between">
-            <span class="font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">v1.4.5</span>
-            <span class="text-slate-400 text-[10px]">Herbst 2026</span>
-          </div>
-          <p class="font-semibold text-slate-800">Layout-Korrektur der Kursreiter-Leiste</p>
-          <ul class="list-disc list-inside text-slate-600 space-y-0.5 leading-relaxed">
-            <li>Keine Überlappung mehr zwischen Kurs-Tabs und dem Button „Kurs anlegen“.</li>
-          </ul>
-        </div>
-
-        <!-- Version 1.4.4 -->
-        <div class="border-l-2 border-slate-300 pl-3 flex flex-col gap-1">
-          <div class="flex items-center justify-between">
-            <span class="font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">v1.4.4</span>
-            <span class="text-slate-400 text-[10px]">Herbst 2026</span>
-          </div>
-          <p class="font-semibold text-slate-800">Vollflächige Zoom-Korrektur</p>
-        </div>
-
-        <!-- Version 1.4.0 -->
-        <div class="border-l-2 border-slate-300 pl-3 flex flex-col gap-1">
-          <div class="flex items-center justify-between">
-            <span class="font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">v1.4.0</span>
-            <span class="text-slate-400 text-[10px]">Herbst 2026</span>
-          </div>
-          <p class="font-semibold text-slate-800">Elternsprechtag & Notizen-Sammelansicht</p>
         </div>
       </div>
 
@@ -591,7 +534,6 @@
 
     const colorPalette = ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ec4899', '#06b6d4', '#64748b', '#6366f1'];
 
-    // Stufen-Modell (Bergsteiger-System)
     const LEVEL_CONFIG = {
       basis: { id: 'basis', label: 'Basislager', icon: '🏕️', color: '#b45309', bg: '#fef3c7' },
       aufsteiger: { id: 'aufsteiger', label: 'Aufsteiger', icon: '🧗', color: '#1d4ed8', bg: '#dbeafe' },
@@ -658,6 +600,27 @@
     let currentPopoverStudentId = null;
     let currentPopoverTaskId = null;
 
+    /* PWA SERVICE WORKER REGISTRATION */
+    function initServiceWorker() {
+      const statusEl = document.getElementById('pwaStatusText');
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('./sw.js')
+          .then(reg => {
+            if (statusEl) {
+              statusEl.innerHTML = '<span class="text-emerald-600 font-semibold"><i class="fa-solid fa-wifi-slash"></i> 100% Offline bereit</span>';
+            }
+          })
+          .catch(err => {
+            if (statusEl) {
+              // Falls sw.js lokal noch nicht liegt oder im reinen Dateimodus geöffnet wird
+              statusEl.innerHTML = '<span class="text-slate-400"><i class="fa-solid fa-cloud"></i> Online-Modus</span>';
+            }
+          });
+      } else if (statusEl) {
+        statusEl.innerHTML = '<span class="text-slate-400">Offline-Worker nicht unterstützt</span>';
+      }
+    }
+
     function openDatabase() {
       return new Promise((resolve, reject) => {
         const req = indexedDB.open(DB_NAME, DB_VERSION);
@@ -711,11 +674,11 @@
     }
 
     window.addEventListener('DOMContentLoaded', async () => {
+      initServiceWorker();
       await requestStoragePersistence();
       const loaded = await loadFromDB();
       appData = loaded || JSON.parse(JSON.stringify(defaultData));
 
-      // Datenintegrität sicherstellen
       if (!appData.courses || appData.courses.length === 0) {
         appData.courses = JSON.parse(JSON.stringify(defaultData.courses));
       }
@@ -743,14 +706,12 @@
       applyCollapseVisuals();
       renderAll();
 
-      // Automatisches Anpassen bei Fenster- oder Smartboard-Größenänderung
       window.addEventListener('resize', () => {
         if (appData) {
           applyZoom(appData.zoomLevel || 1.0);
         }
       });
 
-      // Klick außerhalb des Status-Popovers schließt dieses
       document.addEventListener('click', (e) => {
         const pop = document.getElementById('statusDropdownPopover');
         if (pop && !pop.classList.contains('hidden') && !pop.contains(e.target) && !e.target.closest('.status-cell-btn')) {
@@ -869,15 +830,10 @@
       const crs = getActiveCourse();
       const compactTitle = document.getElementById('compactCourseTitle');
       const compactZoom = document.getElementById('compactZoomLabel');
-      const compactBadge = document.getElementById('compactStudentModeBadge');
       const searchBadge = document.getElementById('compactSearchBadge');
 
       if (compactTitle && crs) compactTitle.textContent = crs.name;
       if (compactZoom) compactZoom.textContent = `${Math.round((appData.zoomLevel || 1.0) * 100)}%`;
-      if (compactBadge) {
-        if (appData.isStudentMode) compactBadge.classList.remove('hidden');
-        else compactBadge.classList.add('hidden');
-      }
       if (searchBadge) {
         if (searchQuery.trim().length > 0) searchBadge.classList.remove('hidden');
         else searchBadge.classList.add('hidden');
@@ -1053,7 +1009,6 @@
       if (currentView === 'card') renderCardView();
     }
 
-    /* SKALIERUNG (ZOOM) - MIT DYNAMISCHER HÖHENKOMPENSATION */
     function adjustZoom(delta) {
       let z = (appData.zoomLevel || 1.0) + delta;
       z = Math.max(0.7, Math.min(1.6, Math.round(z * 10) / 10));
@@ -1077,8 +1032,6 @@
         wrapper.style.transformOrigin = 'top left';
         wrapper.style.transform = `scale(${zoom})`;
         wrapper.style.width = `${100 / zoom}%`;
-        
-        // Exakte Pixel-Berechnung der sichtbaren Viewport-Höhe verhindert Abschneiden am unteren Rand
         const exactHeight = window.innerHeight / zoom;
         wrapper.style.height = `${exactHeight}px`;
         wrapper.style.maxHeight = `${exactHeight}px`;
@@ -1093,7 +1046,7 @@
       applyStudentModeVisuals();
       saveToDB();
       renderAll();
-      showToast(appData.isStudentMode ? 'Smartboard-Modus aktiv (Namen anonymisiert)' : 'Lehrkraft-Modus aktiv');
+      showToast(appData.isStudentMode ? 'Smartboard-Modus aktiv' : 'Lehrkraft-Modus aktiv');
     }
 
     function applyStudentModeVisuals() {
@@ -1129,7 +1082,6 @@
       headerRow.innerHTML = '';
       body.innerHTML = '';
 
-      // Schülerspalte (fixiert und schlank)
       const thStudent = document.createElement('th');
       thStudent.className = 'py-3 px-3 sticky-col bg-slate-50 border-r border-slate-200 min-w-[170px] sm:min-w-[190px] text-slate-700';
       thStudent.innerHTML = `
@@ -1139,7 +1091,6 @@
       `;
       headerRow.appendChild(thStudent);
 
-      // Material-Spalten
       course.tasks.forEach((t) => {
         const th = document.createElement('th');
         th.className = 'py-3 px-3 min-w-[130px] text-center border-r border-slate-200 font-medium group relative';
@@ -1165,7 +1116,7 @@
         body.innerHTML = `
           <tr>
             <td colspan="${course.tasks.length + 1}" class="text-center py-8 text-slate-400 text-xs">
-              Keine Kinder in diesem Kurs. Klicke auf "Kind hinzufügen" oder spiele eine CSV ein.
+              Keine Kinder in diesem Kurs. Klicke auf "Kind hinzufügen".
             </td>
           </tr>
         `;
@@ -1185,66 +1136,57 @@
         tdName.innerHTML = `
           <div class="flex items-center justify-between gap-1.5">
             <div class="flex items-center gap-1.5 min-w-0 flex-1">
-              <!-- Niveaustufen-Badge -->
               <button onclick="${appData.isStudentMode ? '' : `cycleStudentLevel('${student.id}')`}" 
                       class="px-1.5 py-0.5 rounded text-[11px] font-semibold transition shrink-0 flex items-center gap-1 shadow-2xs ${appData.isStudentMode ? 'cursor-default' : 'hover:scale-105 active:scale-95'}"
                       style="background-color: ${currentLevel.bg}; color: ${currentLevel.color}; border: 1px solid ${currentLevel.color}40;"
-                      title="Lernniveau: ${currentLevel.label} ${appData.isStudentMode ? '' : '(Klicken zum Weiterstufen)'}">
+                      title="Lernniveau: ${currentLevel.label}">
                 <span>${currentLevel.icon}</span>
                 <span class="text-[10px] hidden sm:inline">${currentLevel.label}</span>
               </button>
 
-              <!-- Name -->
               <span class="truncate cursor-pointer hover:text-emerald-600 transition text-xs sm:text-sm" 
-                    onclick="${appData.isStudentMode ? '' : `openEditStudentModal('${student.id}')`}" 
-                    title="${appData.isStudentMode ? '' : 'Klicken zum Korrigieren des Namens'}">
+                    onclick="${appData.isStudentMode ? '' : `openEditStudentModal('${student.id}')`}">
                 ${displayName}
               </span>
             </div>
 
-            <!-- Aktionen pro Kind -->
             <div class="teacher-only flex items-center gap-0.5 shrink-0">
-              <!-- Eigene Reihenfolge Verschiebe-Knöpfe -->
               ${appData.sortOrder === 'custom' ? `
                 <div class="flex items-center bg-slate-100 rounded-md border border-slate-200 mr-0.5">
-                  <button onclick="moveStudentOrder('${student.id}', -1)" class="px-1 py-0.5 hover:text-emerald-600 text-[10px] transition" title="Nach oben verschieben">
+                  <button onclick="moveStudentOrder('${student.id}', -1)" class="px-1 py-0.5 hover:text-emerald-600 text-[10px] transition">
                     <i class="fa-solid fa-chevron-up"></i>
                   </button>
-                  <button onclick="moveStudentOrder('${student.id}', 1)" class="px-1 py-0.5 hover:text-emerald-600 text-[10px] transition" title="Nach unten verschieben">
+                  <button onclick="moveStudentOrder('${student.id}', 1)" class="px-1 py-0.5 hover:text-emerald-600 text-[10px] transition">
                     <i class="fa-solid fa-chevron-down"></i>
                   </button>
                 </div>
               ` : ''}
 
-              <!-- Krankheits-Zähler -->
               <button onclick="incrementAbsence('${student.id}')" oncontextmenu="event.preventDefault(); decrementAbsence('${student.id}')"
                       class="px-1.5 py-0.5 rounded-md text-[10px] font-semibold border transition flex items-center gap-1 ${student.absenceCount > 0 ? 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100' : 'bg-slate-50 text-slate-400 border-slate-200 hover:text-slate-700'}"
-                      title="Fehltage: ${student.absenceCount} (Linksklick: +1, Rechtsklick: -1)">
+                      title="Fehltage: ${student.absenceCount}">
                 <i class="fa-solid fa-notes-medical"></i>
                 <span>${student.absenceCount}</span>
               </button>
 
-              <!-- Bemerkungs-Knopf -->
               <button onclick="openNoteModal('${student.id}')" 
                       class="p-1 rounded-md text-xs transition ${student.note ? 'text-amber-500 bg-amber-50 hover:bg-amber-100' : 'text-slate-300 hover:text-slate-600'}"
-                      title="${student.note ? `Bemerkung: ${student.note}` : 'Bemerkung hinzufügen'}">
+                      title="${student.note ? `Notiz: ${student.note}` : 'Notiz verfassen'}">
                 <i class="fa-solid fa-comment-dots"></i>
               </button>
 
-              <!-- Löschen Knopf -->
               <button onclick="deleteStudentPrompt('${student.id}')" class="text-slate-300 hover:text-rose-500 text-xs p-1 opacity-0 group-hover:opacity-100 transition" title="Kind entfernen">
                 <i class="fa-solid fa-user-minus"></i>
               </button>
             </div>
           </div>
 
-          <!-- Notiz-Anzeige im Lehrkraft-Modus -->
           ${(appData.uiState.showAllNotes && !appData.isStudentMode) ? `
             <div class="mt-1.5 p-1.5 rounded-lg border text-[11px] leading-snug cursor-pointer transition ${
               student.note 
                 ? 'bg-amber-50 border-amber-200 text-amber-900 font-normal hover:bg-amber-100' 
                 : 'bg-slate-50 border-slate-200 text-slate-400 font-normal hover:text-slate-600'
-            }" onclick="openNoteModal('${student.id}')" title="Klicken zum Bearbeiten">
+            }" onclick="openNoteModal('${student.id}')">
               <i class="fa-solid fa-pen-to-square text-[10px] mr-1 ${student.note ? 'text-amber-600' : 'text-slate-400'}"></i>
               <span>${student.note ? student.note : 'Keine Notiz vorhanden (+)'}</span>
             </div>
@@ -1252,7 +1194,6 @@
         `;
         tr.appendChild(tdName);
 
-        // Material-Zellen
         course.tasks.forEach((task) => {
           const td = document.createElement('td');
           td.className = 'py-2 px-2 text-center border-r border-slate-100';
@@ -1270,7 +1211,6 @@
             <span class="w-2 h-2 rounded-full shrink-0" style="background-color: ${statusObj.color}"></span>
             <span class="truncate">${statusObj.short}</span>
           `;
-          pill.title = `${displayName} | ${task.title}: ${statusObj.label} (Klicken für Dropdown)`;
 
           pill.onclick = (e) => openStatusPopover(e, student.id, task.id);
           td.appendChild(pill);
@@ -1280,12 +1220,9 @@
         body.appendChild(tr);
       });
 
-      // Pufferzeile am Tabellenende: Verhindert, dass der unterste Name durch den Containerrand oder horizontale Scrollbalken verdeckt wird
       const spacerTr = document.createElement('tr');
       spacerTr.className = 'border-none select-none pointer-events-none';
-      spacerTr.innerHTML = `
-        <td colspan="${course.tasks.length + 1}" class="py-4 bg-transparent border-none"></td>
-      `;
+      spacerTr.innerHTML = `<td colspan="${course.tasks.length + 1}" class="py-4 bg-transparent border-none"></td>`;
       body.appendChild(spacerTr);
     }
 
@@ -1496,7 +1433,6 @@
 
       const levelObj = LEVEL_CONFIG[student.level || 'aufsteiger'] || LEVEL_CONFIG.aufsteiger;
 
-      // Schüler-Profil & Notiz-Banner für das ausgewählte Kind rendern
       if (headerContainer) {
         const displayName = formatStudentDisplayName(student.name);
         headerContainer.innerHTML = `
@@ -1511,8 +1447,7 @@
                     <h3 class="font-bold text-slate-900 text-sm sm:text-base">${displayName}</h3>
                     <button onclick="${appData.isStudentMode ? '' : `cycleStudentLevel('${student.id}')`}" 
                             class="text-[10px] font-bold px-2 py-0.5 rounded shadow-2xs transition ${appData.isStudentMode ? 'cursor-default' : 'hover:scale-105 cursor-pointer'}" 
-                            style="background-color: ${levelObj.bg}; color: ${levelObj.color}; border: 1px solid ${levelObj.color}40;"
-                            title="${appData.isStudentMode ? '' : 'Klicken zum Wechseln der Niveaustufe'}">
+                            style="background-color: ${levelObj.bg}; color: ${levelObj.color}; border: 1px solid ${levelObj.color}40;">
                       ${levelObj.label}
                     </button>
                   </div>
@@ -1520,13 +1455,12 @@
                 </div>
               </div>
 
-              <!-- Schnellregler für Fehltage & Notizen-Schaltfläche (nur Lehrkraft) -->
               <div class="teacher-only flex items-center gap-2 flex-wrap">
                 <div class="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-2 py-1 gap-1.5 text-xs">
                   <span class="text-slate-500 font-medium text-[11px]"><i class="fa-solid fa-notes-medical text-rose-500 mr-1"></i>Fehltage:</span>
-                  <button onclick="decrementAbsence('${student.id}')" class="w-5 h-5 flex items-center justify-center bg-white hover:bg-slate-100 rounded border border-slate-200 font-bold text-slate-600 text-[10px] transition" title="Fehltag abziehen">-</button>
+                  <button onclick="decrementAbsence('${student.id}')" class="w-5 h-5 flex items-center justify-center bg-white hover:bg-slate-100 rounded border border-slate-200 font-bold text-slate-600 text-[10px] transition">-</button>
                   <span class="font-bold text-slate-800 font-mono text-xs px-1">${student.absenceCount || 0}</span>
-                  <button onclick="incrementAbsence('${student.id}')" class="w-5 h-5 flex items-center justify-center bg-white hover:bg-slate-100 rounded border border-slate-200 font-bold text-slate-600 text-[10px] transition" title="Fehltag hinzufügen">+</button>
+                  <button onclick="incrementAbsence('${student.id}')" class="w-5 h-5 flex items-center justify-center bg-white hover:bg-slate-100 rounded border border-slate-200 font-bold text-slate-600 text-[10px] transition">+</button>
                 </div>
                 <button onclick="openNoteModal('${student.id}')" class="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition shadow-2xs">
                   <i class="fa-solid fa-pen-to-square text-amber-600"></i>
@@ -1535,7 +1469,6 @@
               </div>
             </div>
 
-            <!-- Notizenbereich für Lehrkräfte -->
             <div class="teacher-only pt-2 border-t border-slate-100">
               ${student.note ? `
                 <div onclick="openNoteModal('${student.id}')" class="p-3 bg-amber-50/90 border border-amber-200/90 rounded-xl text-xs text-amber-950 cursor-pointer hover:bg-amber-100/90 transition shadow-2xs flex items-start gap-2.5">
@@ -1543,10 +1476,10 @@
                   <div class="flex-1 min-w-0">
                     <div class="flex items-center justify-between gap-1 mb-0.5">
                       <span class="font-bold text-[11px] uppercase tracking-wider text-amber-800 flex items-center gap-1">
-                        <span>Pädagogische Notiz / Beobachtung</span>
-                        <i class="fa-solid fa-shield-halved text-[9px] text-amber-600" title="Im Smartboard-Modus geschützt"></i>
+                        <span>Pädagogische Notiz</span>
+                        <i class="fa-solid fa-shield-halved text-[9px] text-amber-600"></i>
                       </span>
-                      <span class="text-[10px] text-amber-700 underline font-medium">Klicken zum Bearbeiten</span>
+                      <span class="text-[10px] text-amber-700 underline font-medium">Bearbeiten</span>
                     </div>
                     <p class="whitespace-pre-wrap leading-relaxed text-slate-800 font-normal">${student.note}</p>
                   </div>
@@ -1581,18 +1514,16 @@
               ${student.absenceCount > 0 && !appData.isStudentMode ? `<span class="text-[10px] text-rose-600 font-semibold"><i class="fa-solid fa-notes-medical mr-0.5"></i>${student.absenceCount} Fehltage</span>` : ''}
             </div>
             <h4 class="font-bold text-slate-800 text-sm">${task.title}</h4>
-            <p class="text-xs text-slate-400 mt-0.5">Status per Dropdown festlegen</p>
           </div>
           <div class="flex items-center justify-between gap-2">
             <button onclick="openStatusPopover(event, '${student.id}', '${task.id}')" 
                     class="status-cell-btn text-xs font-semibold px-2.5 py-1 rounded-lg transition hover:scale-105 active:scale-95 flex items-center gap-1.5 cursor-pointer shadow-2xs" 
-                    style="background-color: ${statusObj.color}22; color: ${statusObj.color}; border: 1px solid ${statusObj.color}55;"
-                    title="Status per Dropdown wählen">
+                    style="background-color: ${statusObj.color}22; color: ${statusObj.color}; border: 1px solid ${statusObj.color}55;">
               <span class="w-2 h-2 rounded-full" style="background-color: ${statusObj.color}"></span>
               <span>${statusObj.label} (${statusObj.short})</span>
               <i class="fa-solid fa-chevron-down text-[9px] opacity-70"></i>
             </button>
-            <button onclick="cycleStatusStep('${student.id}', '${task.id}')" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition" title="Zur nächsten Stufe">
+            <button onclick="cycleStatusStep('${student.id}', '${task.id}')" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition">
               Weiter <i class="fa-solid fa-arrow-right ml-1"></i>
             </button>
           </div>
@@ -1608,15 +1539,11 @@
       if (!container) return;
 
       const normName = activeStudent.name.trim().toLowerCase();
-
       const studentCourses = [];
       appData.courses.forEach(c => {
         const found = c.students.find(s => s.name.trim().toLowerCase() === normName || s.id === activeStudent.id);
         if (found) {
-          studentCourses.push({
-            course: c,
-            studentData: found
-          });
+          studentCourses.push({ course: c, studentData: found });
         }
       });
 
@@ -1686,9 +1613,6 @@
                 <i class="fa-solid fa-comments text-indigo-600"></i>
                 <span>Elternsprechtags-Berater: Gesamtübersicht</span>
               </h3>
-              <span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-indigo-100 text-indigo-800">
-                ${studentCourses.length} ${studentCourses.length === 1 ? 'Kurs' : 'Kurse'}
-              </span>
             </div>
             <p class="text-[11px] text-slate-500">Lernstände und Notizen von <strong class="text-slate-800">${formatStudentDisplayName(activeStudent.name)}</strong> über alle Kurse hinweg.</p>
           </div>
@@ -1820,7 +1744,7 @@
       const task = course.tasks.find(t => t.id === id);
       showCustomConfirm(
         'Material entfernen',
-        `Möchtest du "${task?.title}" wirklich entfernen? Alle zugehörigen Einträge werden gelöscht.`,
+        `Möchtest du "${task?.title}" wirklich entfernen?`,
         () => {
           course.tasks = course.tasks.filter(t => t.id !== id);
           Object.keys(course.progress).forEach(k => {
@@ -1836,7 +1760,7 @@
     function exportExcel() {
       const course = getActiveCourse();
       if (!course || course.students.length === 0) {
-        showToast('Keine Daten für den aktuellen Kurs');
+        showToast('Keine Daten vorhanden');
         return;
       }
 
@@ -1877,7 +1801,7 @@
     function exportPDF() {
       const course = getActiveCourse();
       if (!course || course.students.length === 0) {
-        showToast('Keine Daten im aktuellen Kurs');
+        showToast('Keine Daten vorhanden');
         return;
       }
 
@@ -1930,7 +1854,7 @@
     function exportCSV() {
       const course = getActiveCourse();
       if (!course || course.students.length === 0) {
-        showToast('Keine Kinder im aktuellen Kurs');
+        showToast('Keine Kinder vorhanden');
         return;
       }
 
@@ -2156,7 +2080,6 @@
       const el = document.getElementById(id);
       if (el) el.classList.remove('hidden');
     }
-    
     function closeModal(id) {
       const el = document.getElementById(id);
       if (el) el.classList.add('hidden');
