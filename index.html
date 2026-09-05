@@ -4421,6 +4421,26 @@
     }
 
     
+    
+    // Globaler Tastatur-Listener: Schließt geöffnete Popovers/Modals bei Tastatureingaben in der Tabelle
+    document.addEventListener('keydown', (e) => {
+      if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
+
+      const popover = document.getElementById('statusDropdownPopover');
+      if (popover && !popover.classList.contains('hidden')) {
+        if (e.key === 'Escape') {
+          closeStatusPopover();
+          return;
+        }
+        const cellShortcuts = ['1', '2', '3', '4', '5', '6', '+', '-', '=', 'o', 'O', 'f', 'F', 'n', 'N', '0', 'i', 'I', 'b', 'B', 'h', 'H', 'Enter', 'Tab', 'ArrowDown', 'ArrowUp', 'ArrowRight', 'ArrowLeft'];
+        if (cellShortcuts.includes(e.key)) {
+          closeStatusPopover();
+          closeColumnActionPopover();
+          document.querySelectorAll('.fixed.inset-0:not(.hidden)').forEach(m => m.classList.add('hidden'));
+        }
+      }
+    });
+
     function focusCell(rowIdx, colIdx) {
       const target = document.querySelector(`.status-cell-btn[data-row-idx="${rowIdx}"][data-col-idx="${colIdx}"]`);
       if (target) {
@@ -4434,6 +4454,11 @@
     function handleCellKeydown(e, studentId, taskId, rowIdx, colIdx) {
       const course = getActiveCourse();
       if (!course) return;
+
+      // Schließt Popovers und offene Modals sofort, wenn Tastatur-Eingaben beginnen
+      closeStatusPopover();
+      closeColumnActionPopover();
+      document.querySelectorAll('.fixed.inset-0:not(.hidden)').forEach(m => m.classList.add('hidden'));
 
       const key = e.key;
 
@@ -5325,6 +5350,7 @@
     function renderMultiCourseSummary(activeStudent) {
       const container = document.getElementById('multiCourseSummaryContainer');
       if (!container) return;
+      const showNotes = !!(appData.uiState && appData.uiState.showAllNotes && !appData.isStudentMode);
 
       const normFirst = (activeStudent.firstName || '').trim().toLowerCase();
       const normLast = (activeStudent.lastName || '').trim().toLowerCase();
@@ -5395,8 +5421,8 @@
               ${tasksPills}
             </div>
 
-            <!-- Direkt editierbare Notiz im Berater -->
-            ${!appData.isStudentMode ? `
+            <!-- Direkt editierbare Notiz im Berater (respektiert Notizen einblenden/verbergen) -->
+            ${(!appData.isStudentMode && showNotes) ? `
               <div class="mt-1 flex flex-col gap-0.5">
                 <div class="flex items-center justify-between">
                   <label class="text-[9px] font-semibold text-slate-600 flex items-center gap-1">
@@ -5410,6 +5436,11 @@
                           rows="1" 
                           placeholder="Notiz für ${escapeHTML(c.name)} hier eintragen..." 
                           class="w-full p-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500 transition">${escapeHTML(s.note || '')}</textarea>
+              </div>
+            ` : (!appData.isStudentMode && s.note) ? `
+              <div class="mt-0.5 flex items-center justify-between p-1 bg-amber-50/70 border border-dashed border-amber-200 rounded-lg text-[9px] text-amber-900">
+                <span class="truncate"><i class="fa-solid fa-note-sticky text-amber-500 mr-1"></i>Notiz für ${escapeHTML(c.name)} vorhanden (ausgeblendet)</span>
+                <button onclick="toggleAllNotes()" class="px-1.5 py-0.2 text-[8px] bg-white border border-amber-200 rounded hover:bg-amber-100 text-amber-800 cursor-pointer">Einblenden</button>
               </div>
             ` : ''}
           </div>
