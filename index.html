@@ -91,7 +91,7 @@
             <div class="flex items-center gap-2">
               <h1 class="font-bold text-slate-900 leading-tight text-sm sm:text-base">Lernfortschritts-Tracker</h1>
               <button onclick="openModal('changelogModal')" class="text-[11px] font-mono font-bold px-2 py-0.5 rounded-lg bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border border-emerald-300 transition cursor-pointer flex items-center gap-1 shadow-2xs" title="Versionshinweise ansehen">
-                <span>v1.5.1</span>
+                <span>v1.5.2</span>
                 <i class="fa-solid fa-circle-info text-[9px] text-emerald-600"></i>
               </button>
               <span id="studentModeBadge" class="hidden text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md bg-indigo-100 text-indigo-800 border border-indigo-200">
@@ -174,7 +174,7 @@
           <i class="fa-solid fa-graduation-cap text-emerald-600 shrink-0"></i>
           <span class="font-bold text-slate-900 truncate" id="compactCourseTitle">Kurs</span>
           <button onclick="openModal('changelogModal')" class="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 border border-emerald-300 shrink-0" title="Changelog">
-            v1.5.1
+            v1.5.2
           </button>
         </div>
 
@@ -523,18 +523,27 @@
       </div>
 
       <div class="overflow-y-auto pr-1 flex flex-col gap-4 text-xs">
-        <!-- Version 1.5.1 -->
+        <!-- Version 1.5.2 -->
         <div class="border-l-2 border-emerald-500 pl-3 flex flex-col gap-1">
           <div class="flex items-center justify-between">
-            <span class="font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">v1.5.1 (Aktuell)</span>
+            <span class="font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">v1.5.2 (Aktuell)</span>
+            <span class="text-slate-400 text-[10px]">Herbst 2026</span>
+          </div>
+          <p class="font-semibold text-slate-800">Dynamische Material-Spaltenbreite</p>
+          <ul class="list-disc list-inside text-slate-600 space-y-0.5 leading-relaxed">
+            <li><strong>Intelligente Breitenanpassung:</strong> Die Materialspalten berechnen ihre Breite dynamisch anhand des längsten Materialnamens im aktuellen Kurs (schlank bei kurzen Kürzeln wie „M1“, ausreichend breit bei ausführlichen Titeln).</li>
+            <li><strong>Kein künstliches Strecken:</strong> Durch eine flexible Absorber-Spalte am rechten Rand werden Spalten selbst bei wenigen Aufgaben nicht mehr übermäßig in die Breite gezogen.</li>
+            <li><strong>Verbesserte Gesamtansicht:</strong> Die Auto-Fit-Berechnung bezieht nun die exakt berechneten dynamischen Spaltenbreiten mit ein.</li>
+          </ul>
+        </div>
+
+        <!-- Version 1.5.1 -->
+        <div class="border-l-2 border-slate-300 pl-3 flex flex-col gap-1">
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">v1.5.1</span>
             <span class="text-slate-400 text-[10px]">Herbst 2026</span>
           </div>
           <p class="font-semibold text-slate-800">Präzise Skalierung & CSV-Notizen</p>
-          <ul class="list-disc list-inside text-slate-600 space-y-0.5 leading-relaxed">
-            <li><strong>Auto-Fit Berechnung optimiert:</strong> Die Gesamtansicht misst nun exakt die unskalierten Spalten- und Zeilengrößen ohne Verzerrung bei wiederholtem Klick.</li>
-            <li><strong>CSV-Import mit Notizen:</strong> Beim Einspielen einer CSV-Datei werden Bemerkungen nun automatisch wieder in die Notizen der Kinder übernommen.</li>
-            <li><strong>Z-Index Hierarchie geschützt:</strong> Die linke obere Schülerspalte bleibt nun auch beim Diagonal-Scrollen garantiert im Vordergrund.</li>
-          </ul>
         </div>
 
         <!-- Version 1.5.0 -->
@@ -800,7 +809,7 @@
       }
 
       let naturalWidth = 0;
-      const ths = table.querySelectorAll('thead th');
+      const ths = table.querySelectorAll('thead th:not(.table-spacer-col)');
       ths.forEach(th => {
         naturalWidth += Math.max(th.offsetWidth, th.scrollWidth);
       });
@@ -1194,8 +1203,18 @@
       headerRow.innerHTML = '';
       body.innerHTML = '';
 
+      // 1. Längsten Materialtitel ermitteln zur dynamischen Spaltenberechnung
+      let maxTitleLength = 0;
+      course.tasks.forEach(t => {
+        const len = (t.title || '').trim().length;
+        if (len > maxTitleLength) maxTitleLength = len;
+      });
+      // Dynamische Spaltenbreite: min. 76px (für Status-Pille), passend für den längsten Titel, max. 260px
+      const taskColWidth = Math.max(76, Math.min(260, Math.round(maxTitleLength * 8.2 + 42)));
+
+      // Feste Schülerspalte
       const thStudent = document.createElement('th');
-      thStudent.className = 'py-3 px-3 sticky-col bg-slate-50 border-r border-slate-200 min-w-[170px] sm:min-w-[190px] text-slate-700';
+      thStudent.className = 'py-3 px-3 sticky-col bg-slate-50 border-r border-slate-200 min-w-[170px] sm:min-w-[190px] w-[190px] text-slate-700';
       thStudent.innerHTML = `
         <div class="flex items-center justify-between">
           <span class="font-bold">Schüler (${course.students.length})</span>
@@ -1203,14 +1222,18 @@
       `;
       headerRow.appendChild(thStudent);
 
+      // Dynamische Materialspalten
       course.tasks.forEach((t) => {
         const th = document.createElement('th');
-        th.className = 'py-3 px-3 min-w-[130px] text-center border-r border-slate-200 font-medium group relative';
+        th.className = 'py-3 px-2 text-center border-r border-slate-200 font-medium group relative';
+        th.style.width = `${taskColWidth}px`;
+        th.style.minWidth = `${taskColWidth}px`;
+        th.style.maxWidth = `${taskColWidth}px`;
         th.innerHTML = `
-          <div class="flex items-center justify-between gap-1">
-            <span class="truncate" title="${t.title}">${t.title}</span>
+          <div class="flex items-center justify-between gap-1 w-full overflow-hidden">
+            <span class="truncate flex-1 text-center font-semibold" title="${t.title}">${t.title}</span>
             ${!appData.isStudentMode ? `
-              <button onclick="deleteTaskPrompt('${t.id}')" class="text-slate-300 hover:text-rose-500 text-[11px] p-1 transition opacity-0 group-hover:opacity-100" title="Material entfernen">
+              <button onclick="deleteTaskPrompt('${t.id}')" class="text-slate-300 hover:text-rose-500 text-[11px] p-0.5 transition opacity-0 group-hover:opacity-100 shrink-0" title="Material entfernen">
                 <i class="fa-solid fa-trash"></i>
               </button>
             ` : ''}
@@ -1218,6 +1241,11 @@
         `;
         headerRow.appendChild(th);
       });
+
+      // Flexible Puffer-Spalte am rechten Rand (absorbiert Restbreite, verhindert Dehnen)
+      const thSpacer = document.createElement('th');
+      thSpacer.className = 'table-spacer-col w-auto p-0 border-none bg-slate-50';
+      headerRow.appendChild(thSpacer);
 
       const sortedStudents = getSortedStudents(course.students);
       const filtered = sortedStudents.filter(s => 
@@ -1227,7 +1255,7 @@
       if (filtered.length === 0) {
         body.innerHTML = `
           <tr>
-            <td colspan="${course.tasks.length + 1}" class="text-center py-8 text-slate-400 text-xs">
+            <td colspan="${course.tasks.length + 2}" class="text-center py-8 text-slate-400 text-xs">
               Keine Kinder in diesem Kurs. Klicke auf "Kind hinzufügen".
             </td>
           </tr>
@@ -1308,7 +1336,10 @@
 
         course.tasks.forEach((task) => {
           const td = document.createElement('td');
-          td.className = 'py-2 px-2 text-center border-r border-slate-100';
+          td.className = 'py-2 px-1.5 text-center border-r border-slate-100';
+          td.style.width = `${taskColWidth}px`;
+          td.style.minWidth = `${taskColWidth}px`;
+          td.style.maxWidth = `${taskColWidth}px`;
 
           const progressKey = `${student.id}_${task.id}`;
           const currentStatusId = course.progress[progressKey] || appData.statuses[0]?.id;
@@ -1329,12 +1360,17 @@
           tr.appendChild(td);
         });
 
+        // Flexible Puffer-Zelle in jeder Zeile
+        const tdSpacer = document.createElement('td');
+        tdSpacer.className = 'table-spacer-col w-auto p-0 border-none bg-transparent';
+        tr.appendChild(tdSpacer);
+
         body.appendChild(tr);
       });
 
       const spacerTr = document.createElement('tr');
       spacerTr.className = 'border-none select-none pointer-events-none';
-      spacerTr.innerHTML = `<td colspan="${course.tasks.length + 1}" class="py-4 bg-transparent border-none"></td>`;
+      spacerTr.innerHTML = `<td colspan="${course.tasks.length + 2}" class="py-4 bg-transparent border-none"></td>`;
       body.appendChild(spacerTr);
     }
 
@@ -2063,9 +2099,7 @@
         hasAbsence = true;
       }
 
-      // Spalte für Notizen / Bemerkung finden
       const noteColumnIndex = headers.findIndex(h => h.toLowerCase().includes('bemerkung') || h.toLowerCase().includes('notiz'));
-
       const taskNames = headers.slice(taskStartIndex).filter(h => !h.toLowerCase().includes('bemerkung') && !h.toLowerCase().includes('notiz'));
 
       course.tasks = taskNames.map((name, idx) => ({
