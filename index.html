@@ -124,7 +124,7 @@
             <div class="flex items-center gap-1.5">
               <h1 class="font-bold text-slate-900 leading-tight text-xs sm:text-sm">Lernfortschritts-Tracker</h1>
               <button onclick="openModal('changelogModal')" class="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded-md bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border border-emerald-300 transition cursor-pointer flex items-center gap-0.5 shadow-2xs" title="Versionshinweise ansehen">
-                <span>v1.7.1</span>
+                <span>v1.7.2</span>
                 <i class="fa-solid fa-circle-info text-[8px] text-emerald-600"></i>
               </button>
               <span id="studentModeBadge" class="hidden text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.2 rounded-md bg-indigo-100 text-indigo-800 border border-indigo-200">
@@ -213,7 +213,7 @@
           <i class="fa-solid fa-graduation-cap text-emerald-600 shrink-0 text-xs"></i>
           <span class="font-bold text-slate-900 truncate text-xs" id="compactCourseTitle">Kurs</span>
           <button onclick="openModal('changelogModal')" class="text-[9px] font-mono font-bold px-1 py-0.2 rounded bg-emerald-100 text-emerald-800 border border-emerald-300 shrink-0" title="Changelog">
-            v1.7.1
+            v1.7.2
           </button>
         </div>
 
@@ -686,10 +686,23 @@
       </div>
 
       <div class="overflow-y-auto pr-1 flex flex-col gap-3 text-xs">
-        <!-- Version 1.7.1 -->
+        <!-- Version 1.7.2 -->
         <div class="border-l-2 border-emerald-500 pl-2.5 flex flex-col gap-1">
           <div class="flex items-center justify-between">
-            <span class="font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200 text-[10px]">v1.7.1 (Aktuell)</span>
+            <span class="font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200 text-[10px]">v1.7.2 (Aktuell)</span>
+            <span class="text-slate-400 text-[9px]">Herbst 2026</span>
+          </div>
+          <p class="font-semibold text-slate-800">CSV-Import & Spaltenerkennung repariert</p>
+          <ul class="list-disc list-inside text-slate-600 space-y-0.5 leading-relaxed text-[11px]">
+            <li><strong>Intelligente Trennzeichen-Erkennung:</strong> Zuverlässiges Erkennen von Semikolon, Komma und Tabulator auch bei Kurs-Kopfzeilen.</li>
+            <li><strong>Quote-Handling & Feldtrennung:</strong> Zeilen mit Anführungszeichen werden sauber in Nachname, Vorname, Niveau, Fehltage und Materialspalten zerlegt.</li>
+          </ul>
+        </div>
+
+        <!-- Version 1.7.1 -->
+        <div class="border-l-2 border-slate-300 pl-2.5 flex flex-col gap-1">
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-slate-700 bg-slate-100 px-1.5 py-0.2 rounded text-[10px]">v1.7.1</span>
             <span class="text-slate-400 text-[9px]">Herbst 2026</span>
           </div>
           <p class="font-semibold text-slate-800">Template-Bereinigung</p>
@@ -3410,115 +3423,206 @@
       event.target.value = '';
     }
 
-    // NEU: Multi-Kurs CSV Parser
+    // Robuste CSV-Hilfsfunktionen
+    function detectCSVDelimiter(lines) {
+      for (const raw of lines) {
+        const line = (raw || '').trim();
+        if (!line || line.startsWith('#') || line.startsWith('===') || line.startsWith('Kurs:')) continue;
+        const sc = (line.match(/;/g) || []).length;
+        const cm = (line.match(/,/g) || []).length;
+        const tb = (line.match(/\t/g) || []).length;
+        if (sc >= cm && sc >= tb && sc > 0) return ';';
+        if (tb >= cm && tb > 0) return '\t';
+        if (cm > 0) return ',';
+      }
+      return ';';
+    }
+
+    function parseCSVRow(rowStr, delimiter = ';') {
+      const cells = [];
+      let current = '';
+      let inQuotes = false;
+      for (let i = 0; i < rowStr.length; i++) {
+        const char = rowStr[i];
+        if (char === '"') {
+          if (inQuotes && i + 1 < rowStr.length && rowStr[i + 1] === '"') {
+            current += '"';
+            i++;
+          } else {
+            inQuotes = !inQuotes;
+          }
+        } else if (char === delimiter && !inQuotes) {
+          cells.push(current.trim());
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+      cells.push(current.trim());
+      return cells.map(cell => {
+        let c = cell.trim();
+        if (c.startsWith('"') && c.endsWith('"')) {
+          c = c.slice(1, -1);
+        }
+        return c.replace(/""/g, '"').trim();
+      });
+    }
+
+    function parseCSVTable(lines, coursePrefix = 'imp') {
+      const rawLines = lines.map(l => (l || '').trim()).filter(l => l.length > 0 && !l.startsWith('#'));
+      if (rawLines.length < 2) return null;
+
+      const delimiter = detectCSVDelimiter(rawLines);
+
+      let headerLineIdx = 0;
+      while (headerLineIdx < rawLines.length) {
+        const line = rawLines[headerLineIdx];
+        if (line.startsWith('===') || line.startsWith('Kurs:')) {
+          headerLineIdx++;
+        } else {
+          break;
+        }
+      }
+      if (headerLineIdx >= rawLines.length) return null;
+
+      const headers = parseCSVRow(rawLines[headerLineIdx], delimiter);
+      if (headers.length === 0) return null;
+
+      let lastNameIdx = -1;
+      let firstNameIdx = -1;
+      let fullNameIdx = -1;
+      let levelIdx = -1;
+      let absenceIdx = -1;
+      let noteIdx = -1;
+
+      headers.forEach((h, idx) => {
+        const hLow = h.toLowerCase().trim();
+        if (/^(nachname|familienname|surname|last\s*name)$/i.test(hLow) || (hLow.includes('nachname') && !hLow.includes('vorname'))) {
+          lastNameIdx = idx;
+        } else if (/^(vorname|rufname|firstname|first\s*name)$/i.test(hLow) || (hLow.includes('vorname') && !hLow.includes('nachname'))) {
+          firstNameIdx = idx;
+        } else if (/^(name|schüler|schülerin|schülername|schüler\/in|kind|student)$/i.test(hLow) || (hLow.includes('schüler') && !hLow.includes('stand'))) {
+          fullNameIdx = idx;
+        } else if ((hLow.includes('niveau') || hLow.includes('stufe') || hLow.includes('level') || hLow.includes('förderstufe')) && !hLow.includes('bemerkung') && !hLow.includes('notiz') && !hLow.includes('bedarf')) {
+          levelIdx = idx;
+        } else if (hLow.includes('fehltag') || hLow.includes('fehlzeit') || hLow.includes('fehlstund') || hLow.includes('abwesen') || hLow.includes('absence')) {
+          absenceIdx = idx;
+        } else if ((hLow.includes('bemerkung') || hLow.includes('notiz') || hLow.includes('kommentar') || hLow.includes('förderbedarf') || hLow.includes('anmerkung')) && !/^(note\s*\d|endnote|gesamtnote)/i.test(hLow)) {
+          noteIdx = idx;
+        }
+      });
+
+      const taskCols = [];
+      headers.forEach((h, idx) => {
+        if (idx !== lastNameIdx && idx !== firstNameIdx && idx !== fullNameIdx && idx !== levelIdx && idx !== absenceIdx && idx !== noteIdx) {
+          taskCols.push({ idx, title: h.trim() || `M ${taskCols.length + 1}` });
+        }
+      });
+
+      const tasks = taskCols.length > 0
+        ? taskCols.map((tCol, idx) => ({ id: `t_${coursePrefix}_${idx}`, title: tCol.title }))
+        : [{ id: `t_${coursePrefix}_0`, title: 'M 1' }];
+
+      const students = [];
+      const progress = {};
+      const foundStatuses = new Set();
+
+      for (let i = headerLineIdx + 1; i < rawLines.length; i++) {
+        const cols = parseCSVRow(rawLines[i], delimiter);
+        if (!cols.some(c => c.length > 0)) continue;
+
+        let first = '';
+        let last = '';
+        let fullName = '';
+
+        if (lastNameIdx !== -1 && firstNameIdx !== -1) {
+          last = cols[lastNameIdx] || '';
+          first = cols[firstNameIdx] || '';
+          fullName = `${first} ${last}`.trim() || last || first || 'Schüler';
+        } else {
+          const rawName = cols[fullNameIdx !== -1 ? fullNameIdx : 0] || '';
+          if (!rawName) continue;
+          const parsed = parseNameParts(rawName);
+          first = parsed.first;
+          last = parsed.last;
+          fullName = `${first} ${last}`.trim() || rawName;
+        }
+
+        if (!fullName && !last && !first) continue;
+
+        let lvl = 'aufsteiger';
+        if (levelIdx !== -1 && cols[levelIdx]) {
+          const lVal = cols[levelIdx].toLowerCase();
+          if (lVal.includes('basis') || lVal.includes('camp') || lVal.includes('grund')) lvl = 'basis';
+          else if (lVal.includes('gipfel') || lVal.includes('berg') || lVal.includes('hoch')) lvl = 'gipfel';
+        }
+
+        let abs = 0;
+        if (absenceIdx !== -1 && cols[absenceIdx]) {
+          const digits = cols[absenceIdx].replace(/[^0-9]/g, '');
+          if (digits) abs = parseInt(digits, 10);
+        }
+
+        let note = '';
+        if (noteIdx !== -1 && cols[noteIdx]) {
+          note = cols[noteIdx].trim();
+        }
+
+        const sId = `s_${coursePrefix}_${students.length + 1}`;
+        students.push({
+          id: sId,
+          firstName: first,
+          lastName: last,
+          name: fullName,
+          level: lvl,
+          absenceCount: abs,
+          note: note,
+          customOrder: students.length
+        });
+
+        taskCols.forEach((tCol, tIdx) => {
+          const cellVal = (cols[tCol.idx] || '').trim();
+          if (cellVal) {
+            foundStatuses.add(cellVal);
+            const matchingStatus = appData.statuses.find(st =>
+              st.label.toLowerCase() === cellVal.toLowerCase() ||
+              st.short.toLowerCase() === cellVal.toLowerCase()
+            );
+            progress[`${sId}_${tasks[tIdx].id}`] = matchingStatus
+              ? matchingStatus.id
+              : 'stat_' + encodeURIComponent(cellVal).replace(/%/g, '_');
+          }
+        });
+      }
+
+      return { students, tasks, progress, foundStatuses };
+    }
+
+    // Multi-Kurs CSV Parser
     function parseAndLoadMultiCourseCSV(content) {
       const sections = content.split(/=== (?:KURS|Kurs):\s*(.+?)\s*===/);
       if (sections.length < 3) return;
 
       const importedCourses = [];
-      const foundStatuses = new Set();
+      const allFoundStatuses = new Set();
 
       for (let i = 1; i < sections.length; i += 2) {
         const courseName = sections[i].trim();
         const sectionContent = sections[i + 1].trim();
         if (!courseName || !sectionContent) continue;
 
-        const rawLines = sectionContent.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0 && !l.startsWith('#'));
-        if (rawLines.length < 2) continue;
+        const rawLines = sectionContent.split(/\r?\n/);
+        const parsed = parseCSVTable(rawLines, `imp_${importedCourses.length}`);
+        if (!parsed || parsed.students.length === 0) continue;
 
-        const delimiter = rawLines[0].includes(';') ? ';' : (rawLines[0].includes('\t') ? '\t' : ',');
-        const splitRow = (rowStr) => {
-          return rowStr.split(delimiter).map(cell => {
-            let c = cell.trim();
-            if (c.startsWith('"') && c.endsWith('"')) c = c.slice(1, -1);
-            return c.replace(/""/g, '"');
-          });
-        };
-
-        const headers = splitRow(rawLines[0]);
-        let taskStartIndex = 1;
-        let hasLevel = false;
-        let hasAbsence = false;
-
-        if (headers[1] && headers[1].toLowerCase().includes('niveau')) {
-          taskStartIndex++;
-          hasLevel = true;
-        }
-        if (headers[taskStartIndex] && headers[taskStartIndex].toLowerCase().includes('fehltage')) {
-          taskStartIndex++;
-          hasAbsence = true;
-        }
-
-        const noteColumnIndex = headers.findIndex(h => h.toLowerCase().includes('bemerkung') || h.toLowerCase().includes('notiz'));
-        const taskNames = headers.slice(taskStartIndex).filter(h => !h.toLowerCase().includes('bemerkung') && !h.toLowerCase().includes('notiz'));
-
-        const newTasks = taskNames.map((name, idx) => ({
-          id: 't_' + idx,
-          title: name || `M ${idx + 1}`
-        }));
-
-        const newStudents = [];
-        const newProgress = {};
-
-        for (let j = 1; j < rawLines.length; j++) {
-          const cols = splitRow(rawLines[j]);
-          const studentName = cols[0];
-          if (!studentName) continue;
-
-          const sId = 's_' + j;
-          let lvl = 'aufsteiger';
-          let abs = 0;
-          let note = '';
-          let first = '';
-          let last = '';
-
-          if (headers[0].toLowerCase().includes('nachname') && headers[1] && headers[1].toLowerCase().includes('vorname')) {
-            last = cols[0];
-            first = cols[1];
-          } else {
-            const parsed = parseNameParts(cols[0]);
-            first = parsed.first;
-            last = parsed.last;
-          }
-
-          if (hasLevel && cols[1]) {
-            const lVal = cols[1].toLowerCase();
-            if (lVal.includes('basis')) lvl = 'basis';
-            else if (lVal.includes('gipfel')) lvl = 'gipfel';
-          }
-          if (hasAbsence) {
-            abs = parseInt(cols[hasLevel ? 2 : 1]) || 0;
-          }
-          if (noteColumnIndex !== -1 && cols[noteColumnIndex]) {
-            note = cols[noteColumnIndex].trim();
-          }
-
-          newStudents.push({
-            id: sId,
-            firstName: first,
-            lastName: last,
-            name: `${first} ${last}`.trim(),
-            level: lvl,
-            absenceCount: abs,
-            note: note,
-            customOrder: j - 1
-          });
-
-          newTasks.forEach((task, tIdx) => {
-            const cellVal = (cols[taskStartIndex + tIdx] || '').trim();
-            if (cellVal) {
-              foundStatuses.add(cellVal);
-              newProgress[`${sId}_${task.id}`] = 'stat_' + encodeURIComponent(cellVal).replace(/%/g, '_');
-            }
-          });
-        }
+        parsed.foundStatuses.forEach(s => allFoundStatuses.add(s));
 
         importedCourses.push({
           id: 'course_' + Date.now() + '_' + importedCourses.length,
           name: courseName,
-          students: newStudents,
-          tasks: newTasks,
-          progress: newProgress
+          students: parsed.students,
+          tasks: parsed.tasks,
+          progress: parsed.progress
         });
       }
 
@@ -3526,14 +3630,14 @@
         appData.courses = importedCourses;
         appData.activeCourseId = importedCourses[0].id;
 
-        foundStatuses.forEach((val) => {
-          const existing = appData.statuses.find(s => s.label === val || s.short === val);
+        allFoundStatuses.forEach((val) => {
+          const existing = appData.statuses.find(s => s.label.toLowerCase() === val.toLowerCase() || s.short.toLowerCase() === val.toLowerCase());
           if (!existing) {
             const color = colorPalette[appData.statuses.length % colorPalette.length];
             appData.statuses.push({
               id: 'stat_' + encodeURIComponent(val).replace(/%/g, '_'),
               label: val,
-              short: val.length > 4 ? val.slice(0, 3) : val,
+              short: val.length > 4 ? val.slice(0, 3).toUpperCase() : val,
               color: color
             });
           }
@@ -3541,6 +3645,7 @@
       }
     }
 
+    // Einzelkurs CSV Parser
     function parseAndLoadCSVAsNewCourse(content, fallbackName) {
       const rawLines = content.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0 && !l.startsWith('#'));
       if (rawLines.length < 2) return;
@@ -3560,105 +3665,13 @@
         counter++;
       }
 
-      const delimiter = rawLines[0].includes(';') ? ';' : (rawLines[0].includes('\t') ? '\t' : ',');
-
-      const splitRow = (rowStr) => {
-        return rowStr.split(delimiter).map(cell => {
-          let c = cell.trim();
-          if (c.startsWith('"') && c.endsWith('"')) c = c.slice(1, -1);
-          return c.replace(/""/g, '"');
-        });
-      };
-
-      // Header Zeile identifizieren (Zeile 0 oder 1)
-      let headerLineIdx = 0;
-      if (rawLines[0].includes('=== KURS:') || rawLines[0].startsWith('Kurs:')) {
-        headerLineIdx = 1;
-      }
-      if (headerLineIdx >= rawLines.length) return;
-
-      const headers = splitRow(rawLines[headerLineIdx]);
-      let taskStartIndex = 1;
-      let hasLevel = false;
-      let hasAbsence = false;
-
-      if (headers[1] && headers[1].toLowerCase().includes('niveau')) {
-        taskStartIndex++;
-        hasLevel = true;
-      }
-      if (headers[taskStartIndex] && headers[taskStartIndex].toLowerCase().includes('fehltage')) {
-        taskStartIndex++;
-        hasAbsence = true;
+      const parsed = parseCSVTable(rawLines, 'imp_' + Date.now());
+      if (!parsed || parsed.students.length === 0) {
+        showToast('Keine gültigen Schülerdaten in der CSV gefunden');
+        return;
       }
 
-      const noteColumnIndex = headers.findIndex(h => h.toLowerCase().includes('bemerkung') || h.toLowerCase().includes('notiz'));
-      const taskNames = headers.slice(taskStartIndex).filter(h => !h.toLowerCase().includes('bemerkung') && !h.toLowerCase().includes('notiz'));
-
-      const newCourseId = 'course_import_' + Date.now();
-      const newTasks = taskNames.map((name, idx) => ({
-        id: 't_imp_' + idx,
-        title: name || `M ${idx + 1}`
-      }));
-
-      const newStudents = [];
-      const newProgress = {};
-      const foundStatuses = new Set();
-
-      for (let i = headerLineIdx + 1; i < rawLines.length; i++) {
-        const cols = splitRow(rawLines[i]);
-        const studentName = cols[0];
-        if (!studentName) continue;
-
-        const sId = 's_imp_' + i;
-        let lvl = 'aufsteiger';
-        let abs = 0;
-        let note = '';
-        let first = '';
-        let last = '';
-
-        if (headers[0].toLowerCase().includes('nachname') && headers[1] && headers[1].toLowerCase().includes('vorname')) {
-          last = cols[0];
-          first = cols[1];
-        } else {
-          const parsed = parseNameParts(cols[0]);
-          first = parsed.first;
-          last = parsed.last;
-        }
-
-        if (hasLevel && cols[1]) {
-          const lVal = cols[1].toLowerCase();
-          if (lVal.includes('basis')) lvl = 'basis';
-          else if (lVal.includes('gipfel')) lvl = 'gipfel';
-        }
-        if (hasAbsence) {
-          abs = parseInt(cols[hasLevel ? 2 : 1], 10) || 0;
-        }
-        if (noteColumnIndex !== -1 && cols[noteColumnIndex]) {
-          note = cols[noteColumnIndex].trim();
-        }
-
-        newStudents.push({
-          id: sId,
-          firstName: first,
-          lastName: last,
-          name: `${first} ${last}`.trim(),
-          level: lvl,
-          absenceCount: abs,
-          note: note,
-          customOrder: i - 1
-        });
-
-        newTasks.forEach((task, tIdx) => {
-          const cellVal = (cols[taskStartIndex + tIdx] || '').trim();
-          if (cellVal) {
-            foundStatuses.add(cellVal);
-            const matchingStatus = appData.statuses.find(st => st.label.toLowerCase() === cellVal.toLowerCase() || st.short.toLowerCase() === cellVal.toLowerCase());
-            newProgress[`${sId}_${task.id}`] = matchingStatus ? matchingStatus.id : 'stat_' + encodeURIComponent(cellVal).replace(/%/g, '_');
-          }
-        });
-      }
-
-      foundStatuses.forEach((val) => {
+      parsed.foundStatuses.forEach((val) => {
         const existing = appData.statuses.find(s => s.label.toLowerCase() === val.toLowerCase() || s.short.toLowerCase() === val.toLowerCase());
         if (!existing) {
           const color = colorPalette[appData.statuses.length % colorPalette.length];
@@ -3671,18 +3684,18 @@
         }
       });
 
+      const newCourseId = 'course_import_' + Date.now();
       const newCourse = {
         id: newCourseId,
         name: uniqueName,
-        students: newStudents,
-        tasks: newTasks,
-        progress: newProgress
+        students: parsed.students,
+        tasks: parsed.tasks,
+        progress: parsed.progress
       };
 
       appData.courses.push(newCourse);
       appData.activeCourseId = newCourseId;
     }
-
     function confirmResetCurrentCourse() {
       const course = getActiveCourse();
       if (!course) return;
