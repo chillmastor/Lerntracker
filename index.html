@@ -775,12 +775,42 @@
 
     function calculateDynamicTaskColWidth(tasks) {
       if (!tasks || tasks.length === 0) return 58;
+      const visibleTasks = tasks.filter(t => !t.collapsed);
+      if (visibleTasks.length === 0) return 58;
       let maxLen = 0;
-      tasks.forEach(t => {
+      visibleTasks.forEach(t => {
         const len = (t.title || '').trim().length;
         if (len > maxLen) maxLen = len;
       });
       return Math.max(58, Math.min(200, Math.round(maxLen * 7.2 + 28)));
+    }
+
+    function toggleTaskCollapse(taskId) {
+      const course = getActiveCourse();
+      if (!course) return;
+      const task = course.tasks.find(t => t.id === taskId);
+      if (task) {
+        task.collapsed = !task.collapsed;
+        saveToDB();
+        renderTable();
+        if (isFitToScreenActive) fitEntireTableToScreen();
+        showToast(task.collapsed ? `Spalte "${task.title}" geschützt eingeklappt` : `Spalte "${task.title}" aufgeklappt`);
+      }
+    }
+
+    function moveTaskOrder(taskId, direction) {
+      const course = getActiveCourse();
+      if (!course || !course.tasks) return;
+      const currentIndex = course.tasks.findIndex(t => t.id === taskId);
+      const targetIndex = currentIndex + direction;
+      if (currentIndex < 0 || targetIndex < 0 || targetIndex >= course.tasks.length) return;
+
+      const [movedTask] = course.tasks.splice(currentIndex, 1);
+      course.tasks.splice(targetIndex, 0, movedTask);
+
+      saveToDB();
+      renderAll();
+      if (isFitToScreenActive) fitEntireTableToScreen();
     }
 
     function toggleFitToScreen() {
@@ -813,7 +843,11 @@
 
       const studentColWidth = 145;
       const taskColWidth = calculateDynamicTaskColWidth(course.tasks);
-      const totalContentWidth = studentColWidth + (course.tasks.length * taskColWidth) + 16;
+      let tasksWidth = 0;
+      course.tasks.forEach(t => {
+        tasksWidth += t.collapsed ? 28 : taskColWidth;
+      });
+      const totalContentWidth = studentColWidth + tasksWidth + 16;
 
       const rowHeight = (appData.uiState.showAllNotes && !appData.isStudentMode) ? 58 : 36;
       const headerRowHeight = 36;
@@ -1213,22 +1247,55 @@
       `;
       headerRow.appendChild(thStudent);
 
-      course.tasks.forEach((t) => {
+      course.tasks.forEach((t, tIdx) => {
         const th = document.createElement('th');
-        th.className = 'py-2 px-1 text-center border-r border-slate-200 font-medium group relative';
-        th.style.width = `${taskColWidth}px`;
-        th.style.minWidth = `${taskColWidth}px`;
-        th.style.maxWidth = `${taskColWidth}px`;
-        th.innerHTML = `
-          <div class="flex items-center justify-between gap-0.5 w-full overflow-hidden">
-            <span class="truncate flex-1 text-center font-semibold text-[11px]" title="${t.title}">${t.title}</span>
-            ${!appData.isStudentMode ? `
-              <button onclick="deleteTaskPrompt('${t.id}')" class="text-slate-300 hover:text-rose-500 text-[9px] p-0.5 transition opacity-0 group-hover:opacity-100 shrink-0" title="Material entfernen">
-                <i class="fa-solid fa-trash"></i>
-              </button>
-            ` : ''}
-          </div>
-        `;
+        const isCollapsed = !!t.collapsed;
+
+        if (isCollapsed) {
+          th.className = 'py-1 px-0.5 text-center border-r border-slate-200 font-medium bg-slate-100/90 transition-all cursor-pointer hover:bg-slate-200 select-none';
+          th.style.width = '28px';
+          th.style.minWidth = '28px';
+          th.style.maxWidth = '28px';
+          th.title = `${t.title} (Eingeklappt - Klicken zum Aufklappen)`;
+          th.innerHTML = `
+            <div class="flex flex-col items-center justify-center gap-1 w-full h-full py-0.5" onclick="toggleTaskCollapse('${t.id}')">
+              <i class="fa-solid fa-lock text-amber-600 text-[10px]" title="Geschützt eingeklappt"></i>
+              <span class="text-[8px] font-bold text-slate-500 [writing-mode:vertical-lr] truncate max-h-12 uppercase tracking-tighter">${t.title}</span>
+            </div>
+          `;
+        } else {
+          th.className = 'py-2 px-1 text-center border-r border-slate-200 font-medium group relative transition-all';
+          th.style.width = `${taskColWidth}px`;
+          th.style.minWidth = `${taskColWidth}px`;
+          th.style.maxWidth = `${taskColWidth}px`;
+          th.innerHTML = `
+            <div class="flex items-center justify-between gap-0.5 w-full overflow-hidden">
+              ${!appData.isStudentMode ? `
+                <div class="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition">
+                  <button onclick="moveTaskOrder('${t.id}', -1)" class="text-slate-400 hover:text-emerald-600 text-[8px] px-0.5" title="Spalte nach links verschieben" ${tIdx === 0 ? 'disabled style="opacity:0.3"' : ''}>
+                    <i class="fa-solid fa-chevron-left"></i>
+                  </button>
+                  <button onclick="moveTaskOrder('${t.id}', 1)" class="text-slate-400 hover:text-emerald-600 text-[8px] px-0.5" title="Spalte nach rechts verschieben" ${tIdx === course.tasks.length - 1 ? 'disabled style="opacity:0.3"' : ''}>
+                    <i class="fa-solid fa-chevron-right"></i>
+                  </button>
+                </div>
+              ` : ''}
+
+              <span class="truncate flex-1 text-center font-semibold text-[11px]" title="${t.title}">${t.title}</span>
+
+              <div class="flex items-center gap-0.5 shrink-0">
+                <button onclick="toggleTaskCollapse('${t.id}')" class="text-slate-400 hover:text-indigo-600 text-[9px] p-0.5 transition" title="Spalte zuklappen (z. B. für Noten)">
+                  <i class="fa-solid fa-eye-slash"></i>
+                </button>
+                ${!appData.isStudentMode ? `
+                  <button onclick="deleteTaskPrompt('${t.id}')" class="text-slate-300 hover:text-rose-500 text-[9px] p-0.5 transition opacity-0 group-hover:opacity-100" title="Material entfernen">
+                    <i class="fa-solid fa-trash"></i>
+                  </button>
+                ` : ''}
+              </div>
+            </div>
+          `;
+        }
         headerRow.appendChild(th);
       });
 
@@ -1325,27 +1392,44 @@
 
         course.tasks.forEach((task) => {
           const td = document.createElement('td');
-          td.className = 'py-1 px-1 text-center border-r border-slate-100';
-          td.style.width = `${taskColWidth}px`;
-          td.style.minWidth = `${taskColWidth}px`;
-          td.style.maxWidth = `${taskColWidth}px`;
+          const isCollapsed = !!task.collapsed;
 
-          const key = `${student.id}_${task.id}`;
-          const currentStatusId = course.progress[key] || appData.statuses[0]?.id;
-          const statusObj = appData.statuses.find(s => s.id === currentStatusId) || appData.statuses[0] || { label: 'Offen', short: '-', color: '#94a3b8' };
+          if (isCollapsed) {
+            td.className = 'py-1 px-0.5 text-center border-r border-slate-200 bg-slate-50/60 cursor-pointer hover:bg-slate-100 transition';
+            td.style.width = '28px';
+            td.style.minWidth = '28px';
+            td.style.maxWidth = '28px';
+            td.title = `${task.title} ist eingeklappt. Klicken zum Aufklappen.`;
+            td.onclick = () => toggleTaskCollapse(task.id);
+            td.innerHTML = `
+              <div class="w-full py-1 flex items-center justify-center text-slate-300 hover:text-slate-500">
+                <i class="fa-solid fa-ellipsis-vertical text-[10px]"></i>
+              </div>
+            `;
+          } else {
+            td.className = 'py-1 px-1 text-center border-r border-slate-100';
+            td.style.width = `${taskColWidth}px`;
+            td.style.minWidth = `${taskColWidth}px`;
+            td.style.maxWidth = `${taskColWidth}px`;
 
-          const pill = document.createElement('button');
-          pill.className = 'status-cell-btn w-full py-1 px-1 rounded-md text-[11px] font-semibold transition transform active:scale-95 flex items-center justify-center gap-1 cursor-pointer shadow-2xs';
-          pill.style.backgroundColor = statusObj.color + '22';
-          pill.style.color = statusObj.color;
-          pill.style.border = `1px solid ${statusObj.color}55`;
-          pill.innerHTML = `
-            <span class="w-1.5 h-1.5 rounded-full shrink-0" style="background-color: ${statusObj.color}"></span>
-            <span class="truncate text-[10px]">${statusObj.short}</span>
-          `;
+            const key = `${student.id}_${task.id}`;
+            const defaultStat = appData.statuses.find(s => s.id === 'stat_nb') || appData.statuses[0];
+            const currentStatusId = course.progress[key] || defaultStat?.id;
+            const statusObj = appData.statuses.find(s => s.id === currentStatusId) || defaultStat || { label: 'Offen', short: 'NB', color: '#94a3b8' };
 
-          pill.onclick = (e) => openStatusPopover(e, student.id, task.id);
-          td.appendChild(pill);
+            const pill = document.createElement('button');
+            pill.className = 'status-cell-btn w-full py-1 px-1 rounded-md text-[11px] font-semibold transition transform active:scale-95 flex items-center justify-center gap-1 cursor-pointer shadow-2xs';
+            pill.style.backgroundColor = statusObj.color + '22';
+            pill.style.color = statusObj.color;
+            pill.style.border = `1px solid ${statusObj.color}55`;
+            pill.innerHTML = `
+              <span class="w-1.5 h-1.5 rounded-full shrink-0" style="background-color: ${statusObj.color}"></span>
+              <span class="truncate text-[10px]">${statusObj.short}</span>
+            `;
+
+            pill.onclick = (e) => openStatusPopover(e, student.id, task.id);
+            td.appendChild(pill);
+          }
           tr.appendChild(td);
         });
 
@@ -1373,12 +1457,20 @@
 
       const course = getActiveCourse();
       const key = `${studentId}_${taskId}`;
-      const activeStatusId = course.progress[key] || appData.statuses[0]?.id;
+      const defaultStat = appData.statuses.find(s => s.id === 'stat_nb') || appData.statuses[0];
+      const activeStatusId = course.progress[key] || defaultStat?.id;
 
-      appData.statuses.forEach(st => {
+      // Status in zwei Bereiche unterteilen: Standard-Status (NB, IB, OK, HIL) & Noten (1+ bis 6)
+      const standardGroup = appData.statuses.filter(s => !s.id.startsWith('stat_note_'));
+      const gradeGroup = appData.statuses.filter(s => s.id.startsWith('stat_note_'));
+
+      // Bereich 1: Arbeitsstände (NB, IB, OK, etc.)
+      const standardBox = document.createElement('div');
+      standardBox.className = 'flex flex-col gap-0.5';
+      standardGroup.forEach(st => {
         const isCurrent = st.id === activeStatusId;
         const opt = document.createElement('button');
-        opt.className = `w-full text-left px-2 py-1 rounded-lg text-[11px] font-semibold flex items-center justify-between gap-1.5 transition cursor-pointer ${isCurrent ? 'bg-slate-100 font-bold' : 'hover:bg-slate-50 text-slate-700'}`;
+        opt.className = `w-full text-left px-2 py-1 rounded-lg text-[11px] font-semibold flex items-center justify-between gap-1.5 transition cursor-pointer ${isCurrent ? 'bg-slate-100 font-bold border border-slate-300' : 'hover:bg-slate-50 text-slate-700'}`;
         opt.innerHTML = `
           <div class="flex items-center gap-1.5">
             <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color: ${st.color}"></span>
@@ -1387,12 +1479,42 @@
           <span class="text-[9px] text-slate-400 font-mono px-1 py-0.2 rounded bg-white border border-slate-200">${st.short}</span>
         `;
         opt.onclick = () => selectStatusFromPopover(studentId, taskId, st.id);
-        itemsContainer.appendChild(opt);
+        standardBox.appendChild(opt);
       });
+      itemsContainer.appendChild(standardBox);
+
+      // Bereich 2: Notenskala (Kompaktes Raster für schnelle Eingabe)
+      if (gradeGroup.length > 0) {
+        const divider = document.createElement('div');
+        divider.className = 'text-[9px] font-bold text-slate-400 px-1 pt-1.5 pb-0.5 border-t border-slate-100 uppercase tracking-wider flex items-center justify-between';
+        divider.innerHTML = `<span>Noten (1 bis 6)</span>`;
+        itemsContainer.appendChild(divider);
+
+        const gradeGrid = document.createElement('div');
+        gradeGrid.className = 'grid grid-cols-3 gap-1 pt-0.5';
+        gradeGroup.forEach(st => {
+          const isCurrent = st.id === activeStatusId;
+          const gBtn = document.createElement('button');
+          gBtn.className = `px-1.5 py-1 rounded text-center text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer shadow-2xs ${
+            isCurrent ? 'ring-2 ring-slate-800 scale-95 font-black' : 'hover:scale-105 active:scale-95'
+          }`;
+          gBtn.style.backgroundColor = st.color + '22';
+          gBtn.style.color = st.color;
+          gBtn.style.border = `1px solid ${st.color}55`;
+          gBtn.innerHTML = `
+            <span class="w-1.5 h-1.5 rounded-full shrink-0" style="background-color: ${st.color}"></span>
+            <span>${st.short}</span>
+          `;
+          gBtn.title = st.label;
+          gBtn.onclick = () => selectStatusFromPopover(studentId, taskId, st.id);
+          gradeGrid.appendChild(gBtn);
+        });
+        itemsContainer.appendChild(gradeGrid);
+      }
 
       const rect = e.currentTarget.getBoundingClientRect();
-      const topPos = Math.min(window.innerHeight - 230, rect.bottom + 4);
-      const leftPos = Math.min(window.innerWidth - 200, Math.max(8, rect.left));
+      const topPos = Math.min(window.innerHeight - 270, rect.bottom + 4);
+      const leftPos = Math.min(window.innerWidth - 210, Math.max(8, rect.left));
 
       popover.style.top = `${topPos}px`;
       popover.style.left = `${leftPos}px`;
@@ -1856,7 +1978,8 @@
 
       course.tasks.push({
         id: 't_' + Date.now(),
-        title: title
+        title: title,
+        collapsed: false
       });
 
       input.value = '';
