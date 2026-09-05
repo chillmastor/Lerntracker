@@ -91,7 +91,7 @@
             <div class="flex items-center gap-1.5">
               <h1 class="font-bold text-slate-900 leading-tight text-xs sm:text-sm">Lernfortschritts-Tracker</h1>
               <button onclick="openModal('changelogModal')" class="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded-md bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border border-emerald-300 transition cursor-pointer flex items-center gap-0.5 shadow-2xs" title="Versionshinweise ansehen">
-                <span>v1.5.4</span>
+                <span>v1.5.5</span>
                 <i class="fa-solid fa-circle-info text-[8px] text-emerald-600"></i>
               </button>
               <span id="studentModeBadge" class="hidden text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.2 rounded-md bg-indigo-100 text-indigo-800 border border-indigo-200">
@@ -174,7 +174,7 @@
           <i class="fa-solid fa-graduation-cap text-emerald-600 shrink-0 text-xs"></i>
           <span class="font-bold text-slate-900 truncate text-xs" id="compactCourseTitle">Kurs</span>
           <button onclick="openModal('changelogModal')" class="text-[9px] font-mono font-bold px-1 py-0.2 rounded bg-emerald-100 text-emerald-800 border border-emerald-300 shrink-0" title="Changelog">
-            v1.5.4
+            v1.5.5
           </button>
         </div>
 
@@ -523,10 +523,24 @@
       </div>
 
       <div class="overflow-y-auto pr-1 flex flex-col gap-3 text-xs">
-        <!-- Version 1.5.4 -->
+        <!-- Version 1.5.5 -->
         <div class="border-l-2 border-emerald-500 pl-2.5 flex flex-col gap-1">
           <div class="flex items-center justify-between">
-            <span class="font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200 text-[10px]">v1.5.4 (Aktuell)</span>
+            <span class="font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200 text-[10px]">v1.5.5 (Aktuell)</span>
+            <span class="text-slate-400 text-[9px]">Herbst 2026</span>
+          </div>
+          <p class="font-semibold text-slate-800">Spalten-Schutz, Notensystem & Spaltenverschiebung</p>
+          <ul class="list-disc list-inside text-slate-600 space-y-0.5 leading-relaxed text-[11px]">
+            <li><strong>Spalten ein-/ausklappen:</strong> Sensible Spalten (z. B. Noten) können mit dem Auge-Symbol vor Blicken geschützt werden.</li>
+            <li><strong>Notenskala (1+ bis 6):</strong> Vollständig integrierte Noten mit Tendenzen im kompakten 3er-Raster und NB als Standard.</li>
+            <li><strong>Reihenfolge anpassen:</strong> Spalten lassen sich per Klick auf ◀ und ▶ beliebig nach links oder rechts verschieben.</li>
+          </ul>
+        </div>
+
+        <!-- Version 1.5.4 -->
+        <div class="border-l-2 border-slate-300 pl-2.5 flex flex-col gap-1">
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-slate-700 bg-slate-100 px-1.5 py-0.2 rounded text-[10px]">v1.5.4</span>
             <span class="text-slate-400 text-[9px]">Herbst 2026</span>
           </div>
           <p class="font-semibold text-slate-800">Wartungsfreies Auto-Update (Network-First PWA)</p>
@@ -566,6 +580,25 @@
     };
     const LEVEL_KEYS = ['basis', 'aufsteiger', 'gipfel'];
 
+    const DEFAULT_GRADE_STATUSES = [
+      { id: 'stat_note_1p', label: 'Note 1+', short: '1+', color: '#059669' },
+      { id: 'stat_note_1',  label: 'Note 1',  short: '1',  color: '#10b981' },
+      { id: 'stat_note_1m', label: 'Note 1-', short: '1-', color: '#34d399' },
+      { id: 'stat_note_2p', label: 'Note 2+', short: '2+', color: '#0284c7' },
+      { id: 'stat_note_2',  label: 'Note 2',  short: '2',  color: '#0ea5e9' },
+      { id: 'stat_note_2m', label: 'Note 2-', short: '2-', color: '#38bdf8' },
+      { id: 'stat_note_3p', label: 'Note 3+', short: '3+', color: '#d97706' },
+      { id: 'stat_note_3',  label: 'Note 3',  short: '3',  color: '#f59e0b' },
+      { id: 'stat_note_3m', label: 'Note 3-', short: '3-', color: '#fbbf24' },
+      { id: 'stat_note_4p', label: 'Note 4+', short: '4+', color: '#ea580c' },
+      { id: 'stat_note_4',  label: 'Note 4',  short: '4',  color: '#f97316' },
+      { id: 'stat_note_4m', label: 'Note 4-', short: '4-', color: '#fb923c' },
+      { id: 'stat_note_5p', label: 'Note 5+', short: '5+', color: '#dc2626' },
+      { id: 'stat_note_5',  label: 'Note 5',  short: '5',  color: '#ef4444' },
+      { id: 'stat_note_5m', label: 'Note 5-', short: '5-', color: '#f87171' },
+      { id: 'stat_note_6',  label: 'Note 6',  short: '6',  color: '#7f1d1d' }
+    ];
+
     const defaultData = {
       activeCourseId: 'course_6a_bio',
       sortOrder: 'last',
@@ -577,10 +610,11 @@
         showAllNotes: false
       },
       statuses: [
-        { id: 'stat_offen', label: 'Nicht begonnen', short: 'NB', color: '#94a3b8' },
+        { id: 'stat_nb', label: 'Nicht begonnen', short: 'NB', color: '#94a3b8' },
         { id: 'stat_arbeit', label: 'In Bearbeitung', short: 'IB', color: '#3b82f6' },
         { id: 'stat_hilfe', label: 'Braucht Rückmeldung', short: 'HIL', color: '#f59e0b' },
-        { id: 'stat_fertig', label: 'Abgeschlossen', short: 'OK', color: '#10b981' }
+        { id: 'stat_fertig', label: 'Abgeschlossen', short: 'OK', color: '#10b981' },
+        ...DEFAULT_GRADE_STATUSES
       ],
       courses: [
         {
@@ -717,6 +751,11 @@
       }
       if (appData.uiState.showAllNotes === undefined) {
         appData.uiState.showAllNotes = false;
+      }
+
+      // Stellt sicher, dass das neue Notensystem auch bei bestehender Datenbank sofort geladen wird
+      if (!appData.statuses.some(st => st.id.startsWith('stat_note_'))) {
+        appData.statuses.push(...DEFAULT_GRADE_STATUSES);
       }
 
       appData.courses.forEach(c => {
