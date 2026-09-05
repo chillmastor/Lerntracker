@@ -81,6 +81,30 @@
       opacity: 1;
       transform: scale(1.05);
     }
+    /* Gezielter Ausdruck nur des Elternsprechtagsberaters */
+    @media print {
+      body.printing-berater * {
+        visibility: hidden !important;
+      }
+      body.printing-berater #printBeraterArea,
+      body.printing-berater #printBeraterArea * {
+        visibility: visible !important;
+      }
+      body.printing-berater #printBeraterArea {
+        position: absolute !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 15px !important;
+        background: white !important;
+        border: none !important;
+        box-shadow: none !important;
+      }
+      body.printing-berater .no-print {
+        display: none !important;
+      }
+    }
   </style>
 </head>
 <body class="bg-slate-50 text-slate-800 flex flex-col h-full overflow-hidden font-sans select-none" id="appBody" style="height: 100vh; height: 100dvh;">
@@ -100,7 +124,7 @@
             <div class="flex items-center gap-1.5">
               <h1 class="font-bold text-slate-900 leading-tight text-xs sm:text-sm">Lernfortschritts-Tracker</h1>
               <button onclick="openModal('changelogModal')" class="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded-md bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border border-emerald-300 transition cursor-pointer flex items-center gap-0.5 shadow-2xs" title="Versionshinweise ansehen">
-                <span>v1.6.0</span>
+                <span>v1.7.0</span>
                 <i class="fa-solid fa-circle-info text-[8px] text-emerald-600"></i>
               </button>
               <span id="studentModeBadge" class="hidden text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.2 rounded-md bg-indigo-100 text-indigo-800 border border-indigo-200">
@@ -396,24 +420,44 @@
     </div>
   </div>
 
-  <!-- Modal: Schülername bearbeiten -->
+  <!-- Modal: Schülerdaten bearbeiten (Name, Fehltage & Notizen) -->
   <div id="editStudentModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-40 hidden">
-    <div class="bg-white w-full max-w-sm rounded-2xl p-4 shadow-2xl border border-slate-100 flex flex-col gap-2.5">
+    <div class="bg-white w-full max-w-md rounded-2xl p-4 shadow-2xl border border-slate-100 flex flex-col gap-2.5 max-h-[85vh] overflow-y-auto">
       <div class="flex justify-between items-center border-b border-slate-100 pb-2">
-        <h3 class="font-bold text-slate-900 text-sm">Schülername korrigieren</h3>
+        <div>
+          <h3 class="font-bold text-slate-900 text-sm">Schülerdaten bearbeiten</h3>
+          <p class="text-[10px] text-slate-500">Name, Krankheitstage und persönliche Notiz anpassen.</p>
+        </div>
         <button onclick="closeModal('editStudentModal')" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-base"></i></button>
       </div>
-      <div class="flex flex-col gap-2">
-        <div>
-          <label class="block text-xs font-semibold text-slate-600 mb-1">Vorname</label>
-          <input type="text" id="editStudentFirstNameInput" placeholder="z. B. Jonas" class="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" onkeydown="if(event.key==='Enter') applyEditStudentName()">
+      <div class="flex flex-col gap-2.5">
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Vorname</label>
+            <input type="text" id="editStudentFirstNameInput" placeholder="z. B. Jonas" class="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" onkeydown="if(event.key==='Enter') applyEditStudentName()">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Nachname</label>
+            <input type="text" id="editStudentLastNameInput" placeholder="z. B. Albrecht" class="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" onkeydown="if(event.key==='Enter') applyEditStudentName()">
+          </div>
         </div>
+
         <div>
-          <label class="block text-xs font-semibold text-slate-600 mb-1">Nachname</label>
-          <input type="text" id="editStudentLastNameInput" placeholder="z. B. Albrecht" class="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" onkeydown="if(event.key==='Enter') applyEditStudentName()">
+          <label class="block text-xs font-semibold text-slate-600 mb-1">Krankheitstage / Fehltage</label>
+          <div class="flex items-center gap-2">
+            <button type="button" onclick="adjustEditModalAbsence(-1)" class="w-8 h-8 flex items-center justify-center bg-slate-100 hover:bg-slate-200 rounded-lg border border-slate-200 text-slate-700 font-bold text-sm transition cursor-pointer">-</button>
+            <input type="number" id="editStudentAbsenceInput" min="0" value="0" class="w-20 px-3 py-1.5 text-center font-mono font-bold text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500">
+            <button type="button" onclick="adjustEditModalAbsence(1)" class="w-8 h-8 flex items-center justify-center bg-slate-100 hover:bg-slate-200 rounded-lg border border-slate-200 text-slate-700 font-bold text-sm transition cursor-pointer">+</button>
+            <span class="text-xs text-slate-400">Tage erfasst</span>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">Notiz / Förderbedarf</label>
+          <textarea id="editStudentNoteInput" rows="3" placeholder="z. B. LRS-Förderung, Sitzplatz vorne..." class="w-full p-2.5 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-slate-50"></textarea>
         </div>
       </div>
-      <div class="flex justify-between items-center pt-1 border-t border-slate-100">
+      <div class="flex justify-between items-center pt-2 border-t border-slate-100">
         <button onclick="deleteStudentFromEditModal()" class="text-xs text-rose-500 hover:underline flex items-center gap-1 cursor-pointer">
           <i class="fa-solid fa-trash text-[10px]"></i> Kind löschen
         </button>
@@ -642,10 +686,27 @@
       </div>
 
       <div class="overflow-y-auto pr-1 flex flex-col gap-3 text-xs">
-        <!-- Version 1.6.0 -->
+        <!-- Version 1.7.0 -->
         <div class="border-l-2 border-emerald-500 pl-2.5 flex flex-col gap-1">
           <div class="flex items-center justify-between">
-            <span class="font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200 text-[10px]">v1.6.0 (Aktuell)</span>
+            <span class="font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200 text-[10px]">v1.7.0 (Aktuell)</span>
+            <span class="text-slate-400 text-[9px]">Herbst 2026</span>
+          </div>
+          <p class="font-semibold text-slate-800">Tastatur-Schnelleingabe, Kurs-CSV-Import & Berater-Upgrade</p>
+          <ul class="list-disc list-inside text-slate-600 space-y-0.5 leading-relaxed text-[11px]">
+            <li><strong>Schülerdaten bearbeiten:</strong> Klick auf Namen öffnet Bearbeitung von Name, Krankheitstagen (mit +/- Stepper) und Notizen.</li>
+            <li><strong>Tastatur-Schnelleingabe:</strong> Noten (1-6, +, -) und Statuskürzel (o, f, n, 0, i, b, h) direkt über die Tastatur eintragen; mit Enter oder Pfeiltasten sofort zum nächsten Kind springen.</li>
+            <li><strong>Kursname in CSV & Kurs-Neuanlage:</strong> CSV-Export enthält Kursnamen; beim Import wird automatisch ein neuer Kurs angelegt.</li>
+            <li><strong>Elternsprechtagsberater ausklappbar:</strong> Standardmäßig eingeklappt, per Klick ausklappbar.</li>
+            <li><strong>Isolierter Druck:</strong> Drucken-Schaltfläche druckt ausschließlich den Elternsprechtagsbericht ohne Kopfzeilen oder Menüs.</li>
+            <li><strong>Direkt editierbare Lernstände & Notizen:</strong> Notizen im Fokus-Modus sowie Fächer, Lernstände und Notizen im Berater direkt anpassbar. Notiz-Umschaltung synchronisiert.</li>
+          </ul>
+        </div>
+
+        <!-- Version 1.6.0 -->
+        <div class="border-l-2 border-slate-300 pl-2.5 flex flex-col gap-1">
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-slate-700 bg-slate-100 px-1.5 py-0.2 rounded text-[10px]">v1.6.0</span>
             <span class="text-slate-400 text-[9px]">Herbst 2026</span>
           </div>
           <p class="font-semibold text-slate-800">Klasse 5a, Spalten-Massenaktionen & Multi-Kurs CSV</p>
@@ -653,9 +714,6 @@
             <li><strong>Klasse 5a (Hauptschule):</strong> Vollständiger Klassensatz mit 23 Schülern über alle 8 Fächer inklusive Klassenarbeiten und Endnoten.</li>
             <li><strong>Spalten-Massenaktionen:</strong> Klick auf den Spaltenkopf ermöglicht z. B. „Alle auf OK setzen“ oder „Offene auf OK setzen“.</li>
             <li><strong>Rückgängig-Funktion (Strg+Z):</strong> Versehentliche Änderungen können per Knopfdruck oder Shortcut widerrufen werden.</li>
-            <li><strong>Material & Kurse umbenennen:</strong> Materialien und Kurse können jederzeit direkt editiert werden.</li>
-            <li><strong>Multi-Kurs CSV-Backup:</strong> Alle Kurse auf einmal als CSV exportieren und wieder einspielen.</li>
-            <li><strong>Bugfixes & HTML-Escaping:</strong> Schülernamen und Neuanlage funktionieren einwandfrei.</li>
           </ul>
         </div>
 
@@ -676,7 +734,7 @@
   </div>
 
   <script>
-    const DB_NAME = 'LernfortschrittTrackerDB_V7';
+    const DB_NAME = 'LernfortschrittTrackerDB_V8';
     const DB_VERSION = 1;
     const STORE_NAME = 'appDataStore';
 
@@ -3519,6 +3577,9 @@
 
     // Undo-Verlauf
     let undoStack = [];
+    let isBeraterExpanded = false;
+    let currentPopoverCourseId = null;
+    let directNoteDebounceTimer = null;
 
     function escapeHTML(str) {
       if (str === null || str === undefined) return '';
@@ -3868,11 +3929,46 @@
       });
     }
 
+    
+    function handleDirectNoteInput(studentId, text) {
+      const course = getActiveCourse();
+      if (!course) return;
+      const s = course.students.find(x => x.id === studentId);
+      if (!s) return;
+      s.note = text;
+
+      // Sync across courses if relevant
+      clearTimeout(directNoteDebounceTimer);
+      directNoteDebounceTimer = setTimeout(() => {
+        saveToDB();
+      }, 400);
+    }
+
+    function handleBeraterNoteInput(studentId, courseId, text) {
+      const course = appData.courses.find(c => c.id === courseId);
+      if (!course) return;
+      const s = course.students.find(x => x.id === studentId);
+      if (!s) return;
+      s.note = text;
+
+      if (course.id === appData.activeCourseId) {
+        const headerInput = document.getElementById('cardStudentDirectNoteInput');
+        if (headerInput && headerInput.value !== text) {
+          headerInput.value = text;
+        }
+      }
+
+      clearTimeout(directNoteDebounceTimer);
+      directNoteDebounceTimer = setTimeout(() => {
+        saveToDB();
+      }, 400);
+    }
+
     function toggleAllNotes() {
       appData.uiState.showAllNotes = !appData.uiState.showAllNotes;
       updateNotesButtonLabel();
       saveToDB();
-      renderTable();
+      renderAll();
       showToast(appData.uiState.showAllNotes ? 'Alle Notizen eingeblendet' : 'Notizen eingeklappt');
     }
 
@@ -4324,6 +4420,122 @@
       updateCompactHeaderInfo();
     }
 
+    
+    function focusCell(rowIdx, colIdx) {
+      const target = document.querySelector(`.status-cell-btn[data-row-idx="${rowIdx}"][data-col-idx="${colIdx}"]`);
+      if (target) {
+        target.focus();
+        target.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        return true;
+      }
+      return false;
+    }
+
+    function handleCellKeydown(e, studentId, taskId, rowIdx, colIdx) {
+      const course = getActiveCourse();
+      if (!course) return;
+
+      const key = e.key;
+
+      // Enter: Springt zum nächsten Schüler in derselben Spalte
+      if (key === 'Enter') {
+        e.preventDefault();
+        if (e.shiftKey) {
+          focusCell(rowIdx - 1, colIdx);
+        } else {
+          focusCell(rowIdx + 1, colIdx);
+        }
+        return;
+      }
+
+      // Tab: Weiterbewegung (Spalte weiter)
+      if (key === 'Tab') {
+        e.preventDefault();
+        if (e.shiftKey) {
+          if (!focusCell(rowIdx, colIdx - 1)) {
+            focusCell(rowIdx - 1, course.tasks.length - 1);
+          }
+        } else {
+          if (!focusCell(rowIdx, colIdx + 1)) {
+            focusCell(rowIdx + 1, 0);
+          }
+        }
+        return;
+      }
+
+      // Pfeiltasten zur freien Zellnavigation
+      if (key === 'ArrowDown') {
+        e.preventDefault();
+        focusCell(rowIdx + 1, colIdx);
+        return;
+      }
+      if (key === 'ArrowUp') {
+        e.preventDefault();
+        focusCell(rowIdx - 1, colIdx);
+        return;
+      }
+      if (key === 'ArrowRight') {
+        e.preventDefault();
+        focusCell(rowIdx, colIdx + 1);
+        return;
+      }
+      if (key === 'ArrowLeft') {
+        e.preventDefault();
+        focusCell(rowIdx, colIdx - 1);
+        return;
+      }
+
+      // Schnelleingabe von Noten (1-6) und Stufen (+ / -)
+      let targetStatusId = null;
+      const progressKey = `${studentId}_${taskId}`;
+      const currentStatusId = course.progress[progressKey] || 'stat_nb';
+
+      if (['1', '2', '3', '4', '5', '6'].includes(key)) {
+        targetStatusId = `stat_note_${key}`;
+      } else if (key === '+' || key === '=') {
+        const match = currentStatusId.match(/^stat_note_([1-5])/);
+        if (match) {
+          targetStatusId = `stat_note_${match[1]}p`;
+        }
+      } else if (key === '-') {
+        const match = currentStatusId.match(/^stat_note_([1-5])/);
+        if (match) {
+          targetStatusId = `stat_note_${match[1]}m`;
+        }
+      } else if (key.toLowerCase() === 'o' || key.toLowerCase() === 'f') {
+        targetStatusId = 'stat_fertig';
+      } else if (key.toLowerCase() === 'n' || key === '0') {
+        targetStatusId = 'stat_nb';
+      } else if (key.toLowerCase() === 'i' || key.toLowerCase() === 'b') {
+        targetStatusId = 'stat_arbeit';
+      } else if (key.toLowerCase() === 'h') {
+        targetStatusId = 'stat_hilfe';
+      } else if (key === 'Backspace' || key === 'Delete') {
+        targetStatusId = 'stat_nb';
+      }
+
+      if (targetStatusId) {
+        e.preventDefault();
+        const statObj = appData.statuses.find(s => s.id === targetStatusId);
+        if (statObj) {
+          pushUndoState(`Status ${statObj.label} eingetragen`);
+          course.progress[progressKey] = targetStatusId;
+          saveToDB();
+
+          // Direktes DOM-Update für maximale Geschwindigkeit ohne Fokusverlust
+          const btn = e.currentTarget;
+          btn.style.backgroundColor = statObj.color + '22';
+          btn.style.color = statObj.color;
+          btn.style.border = `1px solid ${statObj.color}55`;
+          btn.innerHTML = `
+            <span class="w-1.5 h-1.5 rounded-full shrink-0" style="background-color: ${statObj.color}"></span>
+            <span class="truncate text-[10px]">${escapeHTML(statObj.short)}</span>
+          `;
+          updateStatsBar();
+        }
+      }
+    }
+
     function renderTable() {
       const course = getActiveCourse();
       if (!course) return;
@@ -4416,7 +4628,7 @@
         return;
       }
 
-      filtered.forEach((student) => {
+      filtered.forEach((student, rowIdx) => {
         const tr = document.createElement('tr');
         tr.className = 'hover:bg-slate-50/70 transition h-[26px]';
 
@@ -4484,7 +4696,7 @@
         `;
         tr.appendChild(tdName);
 
-        course.tasks.forEach((task) => {
+        course.tasks.forEach((task, colIdx) => {
           const td = document.createElement('td');
           const isCollapsed = !!task.collapsed;
 
@@ -4512,7 +4724,12 @@
             const statusObj = appData.statuses.find(s => s.id === currentStatusId) || defaultStat || { label: 'Offen', short: 'NB', color: '#94a3b8' };
 
             const pill = document.createElement('button');
-            pill.className = 'status-cell-btn w-full h-[22px] py-0 px-1 rounded text-[10px] font-bold transition transform active:scale-95 flex items-center justify-center gap-1 cursor-pointer shadow-2xs';
+            pill.className = 'status-cell-btn w-full h-[22px] py-0 px-1 rounded text-[10px] font-bold transition transform active:scale-95 flex items-center justify-center gap-1 cursor-pointer shadow-2xs focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-1';
+            pill.tabIndex = 0;
+            pill.setAttribute('data-row-idx', rowIdx);
+            pill.setAttribute('data-col-idx', colIdx);
+            pill.setAttribute('data-student-id', student.id);
+            pill.setAttribute('data-task-id', task.id);
             pill.style.backgroundColor = statusObj.color + '22';
             pill.style.color = statusObj.color;
             pill.style.border = `1px solid ${statusObj.color}55`;
@@ -4522,6 +4739,7 @@
             `;
 
             pill.onclick = (e) => openStatusPopover(e, student.id, task.id);
+            pill.onkeydown = (e) => handleCellKeydown(e, student.id, task.id, rowIdx, colIdx);
             td.appendChild(pill);
           }
           tr.appendChild(td);
@@ -4540,16 +4758,18 @@
       body.appendChild(spacerTr);
     }
 
-    function openStatusPopover(e, studentId, taskId) {
+    function openStatusPopover(e, studentId, taskId, courseId = null) {
       e.stopPropagation();
       currentPopoverStudentId = studentId;
       currentPopoverTaskId = taskId;
+      currentPopoverCourseId = courseId;
 
       const popover = document.getElementById('statusDropdownPopover');
       const itemsContainer = document.getElementById('statusDropdownItems');
       itemsContainer.innerHTML = '';
 
-      const course = getActiveCourse();
+      const course = courseId ? appData.courses.find(c => c.id === courseId) : getActiveCourse();
+      if (!course) return;
       const key = `${studentId}_${taskId}`;
       const defaultStat = appData.statuses.find(s => s.id === 'stat_nb') || appData.statuses[0];
       const activeStatusId = course.progress[key] || defaultStat?.id;
@@ -4620,7 +4840,7 @@
     }
 
     function selectStatusFromPopover(studentId, taskId, statusId) {
-      const course = getActiveCourse();
+      const course = currentPopoverCourseId ? appData.courses.find(c => c.id === currentPopoverCourseId) : getActiveCourse();
       if (!course) return;
 
       pushUndoState('Status geändert');
@@ -4781,7 +5001,7 @@
       closeModal('noteModal');
     }
 
-    function openEditStudentModal(studentId) {
+        function openEditStudentModal(studentId) {
       currentEditStudentId = studentId;
       const course = getActiveCourse();
       const student = course.students.find(s => s.id === studentId);
@@ -4790,8 +5010,26 @@
       const p = parseNameParts(student.name);
       document.getElementById('editStudentFirstNameInput').value = student.firstName || p.first || '';
       document.getElementById('editStudentLastNameInput').value = student.lastName || p.last || '';
+
+      const absInput = document.getElementById('editStudentAbsenceInput');
+      if (absInput) {
+        absInput.value = student.absenceCount !== undefined ? student.absenceCount : (student.absences || 0);
+      }
+      const noteInput = document.getElementById('editStudentNoteInput');
+      if (noteInput) {
+        noteInput.value = student.note || '';
+      }
+
       openModal('editStudentModal');
       setTimeout(() => document.getElementById('editStudentFirstNameInput').focus(), 50);
+    }
+
+    function adjustEditModalAbsence(delta) {
+      const input = document.getElementById('editStudentAbsenceInput');
+      if (!input) return;
+      let val = parseInt(input.value, 10) || 0;
+      val = Math.max(0, val + delta);
+      input.value = val;
     }
 
     function applyEditStudentName() {
@@ -4800,14 +5038,32 @@
 
       const first = document.getElementById('editStudentFirstNameInput').value.trim();
       const last = document.getElementById('editStudentLastNameInput').value.trim();
+      const absInput = document.getElementById('editStudentAbsenceInput');
+      const absences = absInput ? Math.max(0, parseInt(absInput.value, 10) || 0) : 0;
+      const noteInput = document.getElementById('editStudentNoteInput');
+      const note = noteInput ? noteInput.value.trim() : '';
+
       if (!first && !last) return;
 
       const student = course.students.find(s => s.id === currentEditStudentId);
       if (student) {
-        pushUndoState(`Schüler ${student.name} bearbeitet`);
-        student.firstName = first;
-        student.lastName = last;
-        student.name = `${first} ${last}`.trim();
+        pushUndoState(`Schülerdaten für ${student.name} bearbeitet`);
+
+        // Synchronize name & absence count across all courses for consistency in 5a
+        appData.courses.forEach(c => {
+          const match = c.students.find(s => s.id === currentEditStudentId);
+          if (match) {
+            match.firstName = first;
+            match.lastName = last;
+            match.name = `${first} ${last}`.trim();
+            match.absenceCount = absences;
+            match.absences = absences;
+          }
+        });
+
+        // Set note for active student
+        student.note = note;
+
         saveToDB();
         renderAll();
         showToast('Schülerdaten aktualisiert');
@@ -4909,23 +5165,33 @@
 
       if (headerContainer) {
         const displayName = formatStudentDisplayName(student);
+        const showNotes = !!(appData.uiState && appData.uiState.showAllNotes && !appData.isStudentMode);
+
         headerContainer.innerHTML = `
-          <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs flex flex-col gap-2">
+          <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs flex flex-col gap-2.5">
             <div class="flex flex-wrap items-center justify-between gap-2">
               <div class="flex items-center gap-2">
-                <div class="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-base shrink-0 shadow-2xs cursor-pointer hover:scale-105 transition" style="background-color: ${levelObj.bg}; color: ${levelObj.color}; border: 1px solid ${levelObj.color}40;" onclick="cycleStudentLevel('${student.id}')" title="Stufe wechseln">
+                <button type="button" 
+                        class="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-base shrink-0 shadow-2xs cursor-pointer hover:scale-105 transition" 
+                        style="background-color: ${levelObj.bg}; color: ${levelObj.color}; border: 1px solid ${levelObj.color}40;" 
+                        onclick="cycleStudentLevel('${student.id}')" 
+                        title="Stufe wechseln: ${escapeHTML(levelObj.label)}">
                   ${levelObj.icon}
-                </div>
+                </button>
                 <div>
                   <div class="flex items-center gap-1.5 flex-wrap">
-                    <h3 class="font-bold text-slate-900 text-xs sm:text-sm">${escapeHTML(displayName)}</h3>
+                    <h3 class="font-bold text-slate-900 text-xs sm:text-sm cursor-pointer hover:text-emerald-700 transition"
+                        onclick="openEditStudentModal('${student.id}')"
+                        title="Klicken zum Bearbeiten (Name, Fehltage, Notiz)">
+                      ${escapeHTML(displayName)}
+                    </h3>
                     <button onclick="cycleStudentLevel('${student.id}')" 
                             class="text-[9px] font-bold px-1.5 py-0.2 rounded shadow-2xs transition hover:scale-105 cursor-pointer" 
                             style="background-color: ${levelObj.bg}; color: ${levelObj.color}; border: 1px solid ${levelObj.color}40;">
                       ${escapeHTML(levelObj.label)}
                     </button>
                   </div>
-                  <p class="text-[10px] text-slate-400">Kurs: <span class="text-slate-600 font-medium">${escapeHTML(course.name)}</span></p>
+                  <p class="text-[10px] text-slate-400">Aktiver Kurs: <span class="text-slate-600 font-medium">${escapeHTML(course.name)}</span></p>
                 </div>
               </div>
 
@@ -4936,25 +5202,38 @@
                   <span class="font-bold text-slate-800 font-mono text-xs px-0.5">${student.absenceCount || 0}</span>
                   <button onclick="incrementAbsence('${student.id}')" class="w-4 h-4 flex items-center justify-center bg-white hover:bg-slate-100 rounded border border-slate-200 font-bold text-slate-600 text-[9px] transition cursor-pointer">+</button>
                 </div>
-                <button onclick="openNoteModal('${student.id}')" class="px-2 py-0.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition shadow-2xs cursor-pointer">
-                  <i class="fa-solid fa-pen-to-square text-amber-600 text-[10px]"></i>
-                  <span>${student.note ? 'Notiz' : 'Notiz +'}</span>
+
+                <button onclick="openEditStudentModal('${student.id}')" class="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1 transition cursor-pointer" title="Schülerdaten vollständig anpassen">
+                  <i class="fa-solid fa-user-pen text-[10px]"></i> Bearbeiten
                 </button>
               </div>
             </div>
 
-            <div class="teacher-only pt-1.5 border-t border-slate-100">
-              ${student.note ? `
-                <div onclick="openNoteModal('${student.id}')" class="p-2 bg-amber-50/90 border border-amber-200/90 rounded-lg text-xs text-amber-950 cursor-pointer hover:bg-amber-100/90 transition shadow-2xs flex items-start gap-2">
-                  <i class="fa-solid fa-note-sticky text-amber-600 text-xs mt-0.5 shrink-0"></i>
-                  <div class="flex-1 min-w-0">
-                    <p class="whitespace-pre-wrap leading-snug text-slate-800 font-normal text-[11px]">${escapeHTML(student.note)}</p>
+            <!-- Direkt editierbare Notiz im Fokus-Modus (respektiert Notizen einblenden/verbergen) -->
+            <div class="teacher-only w-full">
+              ${showNotes ? `
+                <div class="p-2 bg-amber-50/70 border border-amber-200 rounded-xl flex flex-col gap-1">
+                  <div class="flex items-center justify-between">
+                    <span class="text-[10px] font-bold text-amber-900 flex items-center gap-1">
+                      <i class="fa-solid fa-note-sticky text-amber-600"></i> Notiz / Förderbedarf (direkt editierbar):
+                    </span>
+                    <span class="text-[9px] text-amber-700/80">Wird automatisch gespeichert</span>
                   </div>
+                  <textarea id="cardStudentDirectNoteInput" 
+                            oninput="handleDirectNoteInput('${student.id}', this.value)"
+                            rows="2" 
+                            placeholder="Persönliche Notiz oder Förderbedarf hier direkt eintragen..." 
+                            class="w-full p-2 bg-white border border-amber-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500 transition">${escapeHTML(student.note || '')}</textarea>
                 </div>
               ` : `
-                <div onclick="openNoteModal('${student.id}')" class="p-1.5 bg-slate-50 border border-dashed border-slate-300 rounded-lg text-xs text-slate-500 cursor-pointer hover:border-amber-400 hover:text-amber-800 transition flex items-center justify-between">
-                  <span class="text-[10px] text-slate-400">Keine Notiz hinterlegt.</span>
-                  <span class="font-semibold text-[10px] text-emerald-600">+ Hinzufügen</span>
+                <div class="flex items-center justify-between p-1.5 bg-slate-50 border border-dashed border-slate-200 rounded-lg">
+                  <span class="text-[10px] text-slate-500">
+                    <i class="fa-solid fa-note-sticky text-amber-500 mr-1"></i>
+                    ${student.note ? 'Notiz vorhanden (ausgeblendet)' : 'Keine Notiz hinterlegt'}
+                  </span>
+                  <button onclick="toggleAllNotes()" class="px-2 py-0.5 text-[10px] text-amber-800 bg-amber-50 border border-amber-200 rounded-md hover:bg-amber-100 flex items-center gap-1 cursor-pointer">
+                    <i class="fa-solid fa-eye text-amber-600"></i> Notiz einblenden
+                  </button>
                 </div>
               `}
             </div>
@@ -4963,18 +5242,20 @@
       }
 
       course.tasks.forEach(task => {
-        const key = `${student.id}_${task.id}`;
-        const currentStatusId = course.progress[key] || appData.statuses[0]?.id;
-        const statusObj = appData.statuses.find(s => s.id === currentStatusId) || appData.statuses[0];
-
         const card = document.createElement('div');
-        card.className = 'bg-white p-2.5 rounded-xl border border-slate-200 shadow-2xs flex flex-col justify-between gap-2';
+        card.className = 'bg-white p-3 rounded-xl border border-slate-200 shadow-2xs hover:shadow-xs transition flex flex-col justify-between gap-2.5';
+
+        const key = `${student.id}_${task.id}`;
+        const defaultStat = appData.statuses.find(s => s.id === 'stat_nb') || appData.statuses[0];
+        const currentStatusId = course.progress[key] || defaultStat?.id;
+        const statusObj = appData.statuses.find(s => s.id === currentStatusId) || defaultStat;
+
         card.innerHTML = `
-          <div class="flex items-center justify-between gap-1">
-            <h4 class="font-bold text-slate-800 text-xs truncate flex-1" title="${escapeHTML(task.title)}">${escapeHTML(task.title)}</h4>
-            ${student.absenceCount > 0 && !appData.isStudentMode ? `<span class="text-[9px] text-rose-600 font-semibold shrink-0"><i class="fa-solid fa-notes-medical mr-0.5"></i>${student.absenceCount} Fehltage</span>` : ''}
+          <div class="flex items-start justify-between gap-2">
+            <span class="font-bold text-xs sm:text-sm text-slate-800 leading-snug break-words">${escapeHTML(task.title)}</span>
           </div>
-          <div class="w-full">
+
+          <div class="flex flex-col gap-1 pt-1 border-t border-slate-100">
             <button onclick="openStatusPopover(event, '${student.id}', '${task.id}')" 
                     class="status-cell-btn w-full text-[11px] font-semibold px-2.5 py-1.5 rounded-lg transition hover:scale-[1.02] active:scale-95 flex items-center justify-between gap-1.5 cursor-pointer shadow-2xs" 
                     style="background-color: ${statusObj.color}22; color: ${statusObj.color}; border: 1px solid ${statusObj.color}55;">
@@ -4991,6 +5272,54 @@
       });
 
       renderMultiCourseSummary(student);
+    }
+
+    function toggleBeraterExpanded() {
+      isBeraterExpanded = !isBeraterExpanded;
+      const content = document.getElementById('beraterContentArea');
+      const icon = document.getElementById('beraterExpandIcon');
+      const label = document.getElementById('beraterExpandLabel');
+      if (content) {
+        if (isBeraterExpanded) {
+          content.classList.remove('hidden');
+          if (icon) icon.className = 'fa-solid fa-chevron-up text-[10px]';
+          if (label) label.textContent = 'Einklappen';
+        } else {
+          content.classList.add('hidden');
+          if (icon) icon.className = 'fa-solid fa-chevron-down text-[10px]';
+          if (label) label.textContent = 'Ausklappen';
+        }
+      }
+    }
+
+    function printElternsprechtagsberater() {
+      const wasExpanded = isBeraterExpanded;
+      if (!isBeraterExpanded) {
+        isBeraterExpanded = true;
+        const content = document.getElementById('beraterContentArea');
+        if (content) content.classList.remove('hidden');
+        const icon = document.getElementById('beraterExpandIcon');
+        if (icon) icon.className = 'fa-solid fa-chevron-up text-[10px]';
+        const label = document.getElementById('beraterExpandLabel');
+        if (label) label.textContent = 'Einklappen';
+      }
+
+      document.body.classList.add('printing-berater');
+      setTimeout(() => {
+        window.print();
+        setTimeout(() => {
+          document.body.classList.remove('printing-berater');
+          if (!wasExpanded) {
+            isBeraterExpanded = false;
+            const content = document.getElementById('beraterContentArea');
+            if (content) content.classList.add('hidden');
+            const icon = document.getElementById('beraterExpandIcon');
+            if (icon) icon.className = 'fa-solid fa-chevron-down text-[10px]';
+            const label = document.getElementById('beraterExpandLabel');
+            if (label) label.textContent = 'Ausklappen';
+          }
+        }, 400);
+      }, 100);
     }
 
     function renderMultiCourseSummary(activeStudent) {
@@ -5013,8 +5342,7 @@
         }
       });
 
-      const summaryCard = document.createElement('div');
-      summaryCard.className = 'bg-white rounded-xl border border-slate-200 p-3 shadow-2xs flex flex-col gap-2.5';
+      const displayName = formatStudentDisplayName(activeStudent);
 
       let coursesHtml = '';
       studentCourses.forEach(entry => {
@@ -5024,26 +5352,31 @@
 
         let tasksPills = '';
         if (c.tasks.length === 0) {
-          tasksPills = '<span class="text-[10px] text-slate-400">Keine Materialien hinterlegt</span>';
+          tasksPills = '<span class="text-[10px] text-slate-400">Keine Aufgaben / Materialien</span>';
         } else {
           c.tasks.forEach(t => {
             const key = `${s.id}_${t.id}`;
             const stId = c.progress[key] || appData.statuses[0]?.id;
             const stObj = appData.statuses.find(x => x.id === stId) || appData.statuses[0];
             tasksPills += `
-              <div class="flex items-center gap-1 text-[10px] px-1.5 py-0.2 rounded border" style="background-color: ${stObj.color}15; border-color: ${stObj.color}40; color: ${stObj.color};">
-                <span class="font-medium text-slate-700 truncate max-w-[90px]">${escapeHTML(t.title)}:</span>
+              <button type="button" 
+                      onclick="openStatusPopover(event, '${s.id}', '${t.id}', '${c.id}')"
+                      class="touch-btn flex items-center gap-1 text-[10px] px-2 py-0.5 rounded border hover:scale-105 active:scale-95 transition cursor-pointer shadow-2xs" 
+                      style="background-color: ${stObj.color}18; border-color: ${stObj.color}45; color: ${stObj.color};"
+                      title="${escapeHTML(t.title)}: ${escapeHTML(stObj.label)} (Klicken zum Bearbeiten)">
+                <span class="font-medium text-slate-700 truncate max-w-[110px]">${escapeHTML(t.title)}:</span>
                 <span class="font-bold">${escapeHTML(stObj.short)}</span>
-              </div>
+                <i class="fa-solid fa-chevron-down text-[7px] opacity-60 ml-0.5 no-print"></i>
+              </button>
             `;
           });
         }
 
         coursesHtml += `
-          <div class="p-2.5 bg-slate-50 border border-slate-200/80 rounded-lg flex flex-col gap-1.5">
+          <div class="p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl flex flex-col gap-1.5">
             <div class="flex flex-wrap items-center justify-between gap-1.5 border-b border-slate-200/60 pb-1.5">
               <div class="flex items-center gap-1.5">
-                <span class="font-bold text-slate-900 text-xs"><i class="fa-solid fa-folder text-emerald-600 mr-1"></i>${escapeHTML(c.name)}</span>
+                <span class="font-bold text-slate-900 text-xs"><i class="fa-solid fa-book-open text-emerald-600 mr-1"></i>${escapeHTML(c.name)}</span>
                 <button onclick="cycleStudentLevel('${s.id}', '${c.id}')" class="text-[9px] font-bold px-1.5 py-0.2 rounded hover:scale-105 transition cursor-pointer" style="background-color: ${levelObj.bg}; color: ${levelObj.color}; border: 1px solid ${levelObj.color}40;">
                   ${levelObj.icon} ${escapeHTML(levelObj.label)}
                 </button>
@@ -5057,41 +5390,83 @@
               </div>
             </div>
 
+            <!-- Klickbare & direkt editierbare Lernstände -->
             <div class="flex flex-wrap items-center gap-1 pt-0.5">
               ${tasksPills}
             </div>
 
-            ${(!appData.isStudentMode && s.note) ? `
-              <div class="mt-0.5 p-1.5 bg-amber-50/80 border border-amber-200/70 text-amber-950 rounded text-[10px] leading-snug">
-                <i class="fa-solid fa-comment-dots text-amber-600 mr-0.5"></i>
-                <span class="font-semibold">Notiz:</span> ${escapeHTML(s.note)}
+            <!-- Direkt editierbare Notiz im Berater -->
+            ${!appData.isStudentMode ? `
+              <div class="mt-1 flex flex-col gap-0.5">
+                <div class="flex items-center justify-between">
+                  <label class="text-[9px] font-semibold text-slate-600 flex items-center gap-1">
+                    <i class="fa-solid fa-pen-to-square text-amber-600"></i>
+                    Notiz / Förderbedarf (${escapeHTML(c.name)}):
+                  </label>
+                  <span class="text-[8px] text-slate-400 no-print">Wird sofort gesichert</span>
+                </div>
+                <textarea id="beraterNote_${s.id}_${c.id}"
+                          oninput="handleBeraterNoteInput('${s.id}', '${c.id}', this.value)" 
+                          rows="1" 
+                          placeholder="Notiz für ${escapeHTML(c.name)} hier eintragen..." 
+                          class="w-full p-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500 transition">${escapeHTML(s.note || '')}</textarea>
               </div>
             ` : ''}
           </div>
         `;
       });
 
-      summaryCard.innerHTML = `
-        <div class="flex flex-wrap items-center justify-between gap-1.5 border-b border-slate-100 pb-2">
-          <div>
-            <h3 class="font-bold text-slate-900 text-xs sm:text-sm flex items-center gap-1.5">
-              <i class="fa-solid fa-comments text-indigo-600"></i>
-              <span>Elternsprechtags-Berater: Gesamtübersicht</span>
-            </h3>
-            <p class="text-[10px] text-slate-500">Lernstände von <strong class="text-slate-800">${escapeHTML(formatStudentDisplayName(activeStudent))}</strong> über alle Kurse.</p>
-          </div>
-          <button onclick="window.print()" class="px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-1 transition shadow-2xs cursor-pointer">
-            <i class="fa-solid fa-print text-slate-500 text-[10px]"></i> Drucken
-          </button>
-        </div>
+      container.innerHTML = `
+        <div id="printBeraterArea" class="bg-white rounded-xl border border-slate-200 p-3 shadow-2xs flex flex-col gap-2.5">
+          
+          <!-- Berater Leiste: Ausklappbar & Druckbar -->
+          <div class="flex items-center justify-between gap-2 border-b border-slate-100 pb-2">
+            <div class="flex items-center gap-2 cursor-pointer select-none" onclick="toggleBeraterExpanded()">
+              <div class="w-7 h-7 rounded-lg bg-indigo-600 text-white flex items-center justify-center text-xs shadow-2xs shrink-0">
+                <i class="fa-solid fa-users-viewfinder"></i>
+              </div>
+              <div>
+                <h3 class="font-bold text-slate-900 text-xs sm:text-sm flex items-center gap-1.5">
+                  Elternsprechtagsberater
+                  <span class="text-[10px] font-normal text-slate-500">(${studentCourses.length} Fächer erfasst)</span>
+                </h3>
+                <p class="text-[10px] text-slate-400">Übersicht aller Fächer, Niveaus und Noten für ${escapeHTML(displayName)}</p>
+              </div>
+            </div>
 
-        <div class="flex flex-col gap-2">
-          ${coursesHtml}
+            <div class="flex items-center gap-1.5 no-print">
+              <button onclick="printElternsprechtagsberater()" 
+                      class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold flex items-center gap-1.5 shadow-2xs transition cursor-pointer" 
+                      title="Drucke ausschließlich diese Elternsprechtags-Übersicht">
+                <i class="fa-solid fa-print text-[11px]"></i>
+                <span>Drucken</span>
+              </button>
+              <button onclick="toggleBeraterExpanded()" 
+                      class="px-2 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200 text-xs font-semibold flex items-center gap-1 transition cursor-pointer">
+                <span id="beraterExpandLabel">${isBeraterExpanded ? 'Einklappen' : 'Ausklappen'}</span>
+                <i id="beraterExpandIcon" class="fa-solid ${isBeraterExpanded ? 'fa-chevron-up' : 'fa-chevron-down'} text-[10px]"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Spezifischer Druck-Kopf (nur beim Ausdrucken sichtbar) -->
+          <div class="hidden print:block border-b-2 border-slate-900 pb-2 mb-2">
+            <h2 class="text-xl font-bold text-slate-900">Elternsprechtag – Lernentwicklungsbericht</h2>
+            <div class="flex justify-between items-center text-sm text-slate-600 mt-1">
+              <span><strong>Schüler/in:</strong> ${escapeHTML(displayName)}</span>
+              <span><strong>Klasse:</strong> 5a</span>
+              <span><strong>Datum:</strong> ${new Date().toLocaleDateString('de-DE')}</span>
+            </div>
+          </div>
+
+          <!-- Ausklappbarer Inhaltsbereich (Standard: eingeklappt) -->
+          <div id="beraterContentArea" class="${isBeraterExpanded ? '' : 'hidden'} flex flex-col gap-2.5">
+            ${coursesHtml}
+          </div>
         </div>
       `;
-
-      container.appendChild(summaryCard);
     }
+
 
     // Kinder hinzufügen (Batch & Einzeln)
     function openAddStudentModal() {
@@ -5343,6 +5718,7 @@
       }
 
       let csv = '\uFEFF';
+      csv += `=== KURS: ${course.name} ===\r\n`;
       const headers = ['Nachname', 'Vorname', 'Niveau', 'Fehltage', ...course.tasks.map(t => `"${t.title.replace(/"/g, '""')}"`), 'Bemerkung / Förderbedarf'];
       csv += headers.join(';') + '\r\n';
 
@@ -5430,20 +5806,27 @@
       const file = event.target.files[0];
       if (!file) return;
 
+      const fileNameClean = file.name.replace(/\.csv$/i, '').replace(/_Lernfortschritt.*/i, '').trim();
+
       const reader = new FileReader();
       reader.onload = async (e) => {
         try {
           const text = e.target.result;
           pushUndoState('CSV importiert');
           if (text.includes('=== KURS:') || text.includes('=== Kurs:')) {
-            parseAndLoadMultiCourseCSV(text);
+            const matchCount = (text.match(/=== (?:KURS|Kurs):/g) || []).length;
+            if (matchCount > 1) {
+              parseAndLoadMultiCourseCSV(text);
+            } else {
+              parseAndLoadCSVAsNewCourse(text, fileNameClean);
+            }
           } else {
-            parseAndLoadCSVIntoActiveCourse(text);
+            parseAndLoadCSVAsNewCourse(text, fileNameClean);
           }
           await saveToDB();
           renderAll();
           closeModal('exportModal');
-          showToast('CSV erfolgreich eingespielt');
+          showToast('CSV erfolgreich als Kurs importiert');
         } catch (err) {
           showToast('Fehler beim CSV-Import');
           console.error(err);
@@ -5584,12 +5967,24 @@
       }
     }
 
-    function parseAndLoadCSVIntoActiveCourse(content) {
-      const course = getActiveCourse();
-      if (!course) return;
-
+    function parseAndLoadCSVAsNewCourse(content, fallbackName) {
       const rawLines = content.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0 && !l.startsWith('#'));
       if (rawLines.length < 2) return;
+
+      // Kursnamen aus Kopfzeile extrahieren falls vorhanden
+      let courseName = fallbackName || 'Importierter Kurs';
+      const courseMatch = content.match(/=== (?:KURS|Kurs):\s*(.+?)\s*===/) || content.match(/^(?:KURS|Kurs):\s*(.+)$/m);
+      if (courseMatch && courseMatch[1]) {
+        courseName = courseMatch[1].trim();
+      }
+
+      // Eindeutigen Namen sicherstellen falls Kurs schon existiert
+      let uniqueName = courseName;
+      let counter = 2;
+      while (appData.courses.some(c => c.name.toLowerCase() === uniqueName.toLowerCase())) {
+        uniqueName = `${courseName} (${counter})`;
+        counter++;
+      }
 
       const delimiter = rawLines[0].includes(';') ? ';' : (rawLines[0].includes('\t') ? '\t' : ',');
 
@@ -5601,7 +5996,14 @@
         });
       };
 
-      const headers = splitRow(rawLines[0]);
+      // Header Zeile identifizieren (Zeile 0 oder 1)
+      let headerLineIdx = 0;
+      if (rawLines[0].includes('=== KURS:') || rawLines[0].startsWith('Kurs:')) {
+        headerLineIdx = 1;
+      }
+      if (headerLineIdx >= rawLines.length) return;
+
+      const headers = splitRow(rawLines[headerLineIdx]);
       let taskStartIndex = 1;
       let hasLevel = false;
       let hasAbsence = false;
@@ -5618,16 +6020,17 @@
       const noteColumnIndex = headers.findIndex(h => h.toLowerCase().includes('bemerkung') || h.toLowerCase().includes('notiz'));
       const taskNames = headers.slice(taskStartIndex).filter(h => !h.toLowerCase().includes('bemerkung') && !h.toLowerCase().includes('notiz'));
 
-      course.tasks = taskNames.map((name, idx) => ({
-        id: 't_import_' + idx,
+      const newCourseId = 'course_import_' + Date.now();
+      const newTasks = taskNames.map((name, idx) => ({
+        id: 't_imp_' + idx,
         title: name || `M ${idx + 1}`
       }));
 
-      course.students = [];
-      course.progress = {};
+      const newStudents = [];
+      const newProgress = {};
       const foundStatuses = new Set();
 
-      for (let i = 1; i < rawLines.length; i++) {
+      for (let i = headerLineIdx + 1; i < rawLines.length; i++) {
         const cols = splitRow(rawLines[i]);
         const studentName = cols[0];
         if (!studentName) continue;
@@ -5654,13 +6057,13 @@
           else if (lVal.includes('gipfel')) lvl = 'gipfel';
         }
         if (hasAbsence) {
-          abs = parseInt(cols[hasLevel ? 2 : 1]) || 0;
+          abs = parseInt(cols[hasLevel ? 2 : 1], 10) || 0;
         }
         if (noteColumnIndex !== -1 && cols[noteColumnIndex]) {
           note = cols[noteColumnIndex].trim();
         }
 
-        course.students.push({
+        newStudents.push({
           id: sId,
           firstName: first,
           lastName: last,
@@ -5671,27 +6074,39 @@
           customOrder: i - 1
         });
 
-        course.tasks.forEach((task, tIdx) => {
+        newTasks.forEach((task, tIdx) => {
           const cellVal = (cols[taskStartIndex + tIdx] || '').trim();
           if (cellVal) {
             foundStatuses.add(cellVal);
-            course.progress[`${sId}_${task.id}`] = 'stat_' + encodeURIComponent(cellVal).replace(/%/g, '_');
+            const matchingStatus = appData.statuses.find(st => st.label.toLowerCase() === cellVal.toLowerCase() || st.short.toLowerCase() === cellVal.toLowerCase());
+            newProgress[`${sId}_${task.id}`] = matchingStatus ? matchingStatus.id : 'stat_' + encodeURIComponent(cellVal).replace(/%/g, '_');
           }
         });
       }
 
       foundStatuses.forEach((val) => {
-        const existing = appData.statuses.find(s => s.label === val || s.short === val);
+        const existing = appData.statuses.find(s => s.label.toLowerCase() === val.toLowerCase() || s.short.toLowerCase() === val.toLowerCase());
         if (!existing) {
           const color = colorPalette[appData.statuses.length % colorPalette.length];
           appData.statuses.push({
             id: 'stat_' + encodeURIComponent(val).replace(/%/g, '_'),
             label: val,
-            short: val.length > 4 ? val.slice(0, 3) : val,
+            short: val.length > 4 ? val.slice(0, 3).toUpperCase() : val,
             color: color
           });
         }
       });
+
+      const newCourse = {
+        id: newCourseId,
+        name: uniqueName,
+        students: newStudents,
+        tasks: newTasks,
+        progress: newProgress
+      };
+
+      appData.courses.push(newCourse);
+      appData.activeCourseId = newCourseId;
     }
 
     function confirmResetCurrentCourse() {
