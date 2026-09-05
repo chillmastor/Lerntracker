@@ -91,7 +91,7 @@
             <div class="flex items-center gap-1.5">
               <h1 class="font-bold text-slate-900 leading-tight text-xs sm:text-sm">Lernfortschritts-Tracker</h1>
               <button onclick="openModal('changelogModal')" class="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded-md bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border border-emerald-300 transition cursor-pointer flex items-center gap-0.5 shadow-2xs" title="Versionshinweise ansehen">
-                <span>v1.5.3</span>
+                <span>v1.5.4</span>
                 <i class="fa-solid fa-circle-info text-[8px] text-emerald-600"></i>
               </button>
               <span id="studentModeBadge" class="hidden text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.2 rounded-md bg-indigo-100 text-indigo-800 border border-indigo-200">
@@ -174,7 +174,7 @@
           <i class="fa-solid fa-graduation-cap text-emerald-600 shrink-0 text-xs"></i>
           <span class="font-bold text-slate-900 truncate text-xs" id="compactCourseTitle">Kurs</span>
           <button onclick="openModal('changelogModal')" class="text-[9px] font-mono font-bold px-1 py-0.2 rounded bg-emerald-100 text-emerald-800 border border-emerald-300 shrink-0" title="Changelog">
-            v1.5.3
+            v1.5.4
           </button>
         </div>
 
@@ -523,27 +523,26 @@
       </div>
 
       <div class="overflow-y-auto pr-1 flex flex-col gap-3 text-xs">
-        <!-- Version 1.5.3 -->
+        <!-- Version 1.5.4 -->
         <div class="border-l-2 border-emerald-500 pl-2.5 flex flex-col gap-1">
           <div class="flex items-center justify-between">
-            <span class="font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200 text-[10px]">v1.5.3 (Aktuell)</span>
+            <span class="font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200 text-[10px]">v1.5.4 (Aktuell)</span>
             <span class="text-slate-400 text-[9px]">Herbst 2026</span>
           </div>
-          <p class="font-semibold text-slate-800">Engere Spalten & Platzsparende Gesamtansicht</p>
+          <p class="font-semibold text-slate-800">Wartungsfreies Auto-Update (Network-First PWA)</p>
           <ul class="list-disc list-inside text-slate-600 space-y-0.5 leading-relaxed text-[11px]">
-            <li><strong>Kompaktes Spaltendesign:</strong> Schülerspalte und Materialspalten deutlich enger gesetzt (Mindestbreite reduziert auf 58 px, kompaktere Statusbuttons).</li>
-            <li><strong>Auto-Fit Zoom-Korrektur:</strong> Der Vollbildmodus zoomt nun nicht mehr übertrieben weit heraus, sondern nutzt einen gesunden Minimalzoom (mind. 0.45 statt 0.25) und misst exakt ohne Leerpuffer.</li>
-            <li><strong>Feinere Zoom-Schritte:</strong> Zoom-Buttons skalieren nun in sanften 5%-Schritten.</li>
+            <li><strong>Keine manuelle Cache-Pflege mehr:</strong> Bei bestehender Internetverbindung wird nun vollautomatisch die frischeste Version von Vercel geladen und der lokale iPad-Cache im Hintergrund aktualisiert.</li>
+            <li><strong>Automatischer Update-Check:</strong> Bei jedem Start der App prüft der Service Worker im Hintergrund auf neue Deployments.</li>
           </ul>
         </div>
 
-        <!-- Version 1.5.2 -->
+        <!-- Version 1.5.3 -->
         <div class="border-l-2 border-slate-300 pl-2.5 flex flex-col gap-1">
           <div class="flex items-center justify-between">
-            <span class="font-bold text-slate-700 bg-slate-100 px-1.5 py-0.2 rounded text-[10px]">v1.5.2</span>
+            <span class="font-bold text-slate-700 bg-slate-100 px-1.5 py-0.2 rounded text-[10px]">v1.5.3</span>
             <span class="text-slate-400 text-[9px]">Herbst 2026</span>
           </div>
-          <p class="font-semibold text-slate-800">Dynamische Material-Spaltenbreite</p>
+          <p class="font-semibold text-slate-800">Engere Spalten & Platzsparende Gesamtansicht</p>
         </div>
       </div>
 
@@ -633,7 +632,11 @@
       const statusEl = document.getElementById('pwaStatusText');
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('./sw.js')
-          .then(() => {
+          .then((registration) => {
+            // Prüft im Hintergrund bei jedem Start und jedem Seitenwechsel sofort nach neuen Updates
+            if (registration) {
+              registration.update();
+            }
             if (statusEl) {
               statusEl.innerHTML = '<span class="text-emerald-600 font-semibold"><i class="fa-solid fa-wifi-slash"></i> 100% Offline bereit</span>';
             }
@@ -777,7 +780,6 @@
         const len = (t.title || '').trim().length;
         if (len > maxLen) maxLen = len;
       });
-      // Kompakter: min 58px, dynamisch skalierend, max 200px
       return Math.max(58, Math.min(200, Math.round(maxLen * 7.2 + 28)));
     }
 
@@ -809,12 +811,10 @@
         return;
       }
 
-      // Reale Breite der Inhaltsspalten messen (ohne die dehnbare Spacer-Spalte)
       const studentColWidth = 145;
       const taskColWidth = calculateDynamicTaskColWidth(course.tasks);
       const totalContentWidth = studentColWidth + (course.tasks.length * taskColWidth) + 16;
 
-      // Reale Zeilenhöhe berechnen
       const rowHeight = (appData.uiState.showAllNotes && !appData.isStudentMode) ? 58 : 36;
       const headerRowHeight = 36;
       const totalContentHeight = (course.students.length * rowHeight) + headerRowHeight + 20;
@@ -833,7 +833,6 @@
       const scaleY = availH / totalContentHeight;
 
       let optimalZoom = Math.min(scaleX, scaleY);
-      // Begrenzung nach unten auf 0.45 verhindert unlesbares Miniatur-Zoomen
       optimalZoom = Math.max(0.45, Math.min(1.25, Math.round(optimalZoom * 100) / 100));
 
       isFitToScreenActive = true;
@@ -1203,10 +1202,8 @@
       headerRow.innerHTML = '';
       body.innerHTML = '';
 
-      // Kompakte dynamische Spaltenbreite berechnen
       const taskColWidth = calculateDynamicTaskColWidth(course.tasks);
 
-      // Schlankere Schülerspalte
       const thStudent = document.createElement('th');
       thStudent.className = 'py-2 px-2 sticky-col bg-slate-50 border-r border-slate-200 w-[145px] min-w-[145px] text-slate-700';
       thStudent.innerHTML = `
@@ -1216,7 +1213,6 @@
       `;
       headerRow.appendChild(thStudent);
 
-      // Engere Materialspalten
       course.tasks.forEach((t) => {
         const th = document.createElement('th');
         th.className = 'py-2 px-1 text-center border-r border-slate-200 font-medium group relative';
@@ -1236,7 +1232,6 @@
         headerRow.appendChild(th);
       });
 
-      // Flexible Puffer-Spalte
       const thSpacer = document.createElement('th');
       thSpacer.className = 'table-spacer-col w-auto p-0 border-none bg-slate-50';
       headerRow.appendChild(thSpacer);
@@ -1335,8 +1330,8 @@
           td.style.minWidth = `${taskColWidth}px`;
           td.style.maxWidth = `${taskColWidth}px`;
 
-          const progressKey = `${student.id}_${task.id}`;
-          const currentStatusId = course.progress[progressKey] || appData.statuses[0]?.id;
+          const key = `${student.id}_${task.id}`;
+          const currentStatusId = course.progress[key] || appData.statuses[0]?.id;
           const statusObj = appData.statuses.find(s => s.id === currentStatusId) || appData.statuses[0] || { label: 'Offen', short: '-', color: '#94a3b8' };
 
           const pill = document.createElement('button');
