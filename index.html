@@ -124,7 +124,7 @@
             <div class="flex items-center gap-1.5">
               <h1 class="font-bold text-slate-900 leading-tight text-xs sm:text-sm">Lernfortschritts-Tracker</h1>
               <button onclick="openModal('changelogModal')" class="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded-md bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border border-emerald-300 transition cursor-pointer flex items-center gap-0.5 shadow-2xs" title="Versionshinweise ansehen">
-                <span>v1.7.2</span>
+                <span>v1.8.0</span>
                 <i class="fa-solid fa-circle-info text-[8px] text-emerald-600"></i>
               </button>
               <span id="studentModeBadge" class="hidden text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.2 rounded-md bg-indigo-100 text-indigo-800 border border-indigo-200">
@@ -213,7 +213,7 @@
           <i class="fa-solid fa-graduation-cap text-emerald-600 shrink-0 text-xs"></i>
           <span class="font-bold text-slate-900 truncate text-xs" id="compactCourseTitle">Kurs</span>
           <button onclick="openModal('changelogModal')" class="text-[9px] font-mono font-bold px-1 py-0.2 rounded bg-emerald-100 text-emerald-800 border border-emerald-300 shrink-0" title="Changelog">
-            v1.7.2
+            v1.8.0
           </button>
         </div>
 
@@ -348,11 +348,18 @@
   </div>
 
   <!-- Status Dropdown / Popover -->
-  <div id="statusDropdownPopover" class="fixed hidden z-50 bg-white border border-slate-200 rounded-xl shadow-2xl p-1.5 min-w-[190px] flex flex-col gap-1 transition-all transform origin-top-left">
+  <div id="statusDropdownPopover" class="fixed hidden z-50 bg-white border border-slate-200 rounded-xl shadow-2xl p-1.5 min-w-[210px] flex flex-col gap-1.5 transition-all transform origin-top-left">
     <div class="text-[9px] font-bold text-slate-400 px-2 py-0.5 border-b border-slate-100 uppercase tracking-wider flex justify-between items-center">
-      <span>Status festlegen</span>
-      <button onclick="closeStatusPopover()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+      <span>Status & Freitext</span>
+      <button onclick="closeStatusPopover()" class="text-slate-400 hover:text-slate-600 cursor-pointer"><i class="fa-solid fa-xmark"></i></button>
     </div>
+    <form id="popoverFreeTextForm" onsubmit="handlePopoverCustomSubmit(event)" class="p-1 bg-slate-50 border border-slate-200 rounded-lg flex items-center gap-1">
+      <input id="popoverFreeTextInput" type="text" placeholder="Freitext (z. B. 15, krank, A)..." autocomplete="off"
+             class="w-full text-xs px-2 py-1 bg-white rounded border border-slate-200 focus:outline-none focus:ring-1 focus:ring-emerald-500 font-medium text-slate-800">
+      <button type="submit" class="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-bold transition cursor-pointer shrink-0">
+        OK
+      </button>
+    </form>
     <div id="statusDropdownItems" class="flex flex-col gap-0.5 max-h-60 overflow-y-auto pt-0.5"></div>
   </div>
 
@@ -686,11 +693,25 @@
       </div>
 
       <div class="overflow-y-auto pr-1 flex flex-col gap-3 text-xs">
-        <!-- Version 1.7.2 -->
+        <!-- Version 1.8.0 -->
         <div class="border-l-2 border-emerald-500 pl-2.5 flex flex-col gap-1">
           <div class="flex items-center justify-between">
-            <span class="font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200 text-[10px]">v1.7.2 (Aktuell)</span>
-            <span class="text-slate-400 text-[9px]">Herbst 2026</span>
+            <span class="font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200 text-[10px]">v1.8.0 (Aktuell)</span>
+            <span class="text-slate-500 font-medium text-[10px]">07.09.2026</span>
+          </div>
+          <p class="font-semibold text-slate-800">Freie Tastatur-Eingabe, Tabellennavigation & Inline-Editor</p>
+          <ul class="list-disc list-inside text-slate-600 space-y-0.5 leading-relaxed text-[11px]">
+            <li><strong>Freie Tastatur- & Direkteingabe:</strong> Beliebige Noten, Punkte (z. B. 15, 2/10), Bemerkungen (z. B. krank, fehlt, n.a.) oder Statuskürzel direkt über die Tastatur in Tabellenzellen eintippen.</li>
+            <li><strong>Flüssige Tastaturnavigation:</strong> Mit <kbd class="px-1 py-0.5 bg-slate-100 border border-slate-300 rounded text-[9px] font-mono">Enter</kbd> oder <kbd class="px-1 py-0.5 bg-slate-100 border border-slate-300 rounded text-[9px] font-mono">↓</kbd> sofort zur nächsten Schülerzeile springen; intuitive Navigation mit Pfeiltasten, Tab und Shift+Tab.</li>
+            <li><strong>Inline-Editor & Popover:</strong> Bearbeitungsmodus per <kbd class="px-1 py-0.5 bg-slate-100 border border-slate-300 rounded text-[9px] font-mono">F2</kbd> oder Doppelklick/Tippen öffnen; ergänzendes Freitextfeld mit Vorschlagsliste im Klick-Popover.</li>
+          </ul>
+        </div>
+
+        <!-- Version 1.7.2 -->
+        <div class="border-l-2 border-slate-300 pl-2.5 flex flex-col gap-1">
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-slate-700 bg-slate-100 px-1.5 py-0.2 rounded text-[10px]">v1.7.2</span>
+            <span class="text-slate-500 font-medium text-[10px]">07.09.2026</span>
           </div>
           <p class="font-semibold text-slate-800">CSV-Import & Spaltenerkennung repariert</p>
           <ul class="list-disc list-inside text-slate-600 space-y-0.5 leading-relaxed text-[11px]">
@@ -703,7 +724,7 @@
         <div class="border-l-2 border-slate-300 pl-2.5 flex flex-col gap-1">
           <div class="flex items-center justify-between">
             <span class="font-bold text-slate-700 bg-slate-100 px-1.5 py-0.2 rounded text-[10px]">v1.7.1</span>
-            <span class="text-slate-400 text-[9px]">Herbst 2026</span>
+            <span class="text-slate-500 font-medium text-[10px]">07.09.2026</span>
           </div>
           <p class="font-semibold text-slate-800">Template-Bereinigung</p>
           <ul class="list-disc list-inside text-slate-600 space-y-0.5 leading-relaxed text-[11px]">
@@ -715,12 +736,11 @@
         <div class="border-l-2 border-slate-300 pl-2.5 flex flex-col gap-1">
           <div class="flex items-center justify-between">
             <span class="font-bold text-slate-700 bg-slate-100 px-1.5 py-0.2 rounded text-[10px]">v1.7.0</span>
-            <span class="text-slate-400 text-[9px]">Herbst 2026</span>
+            <span class="text-slate-500 font-medium text-[10px]">06.09.2026</span>
           </div>
-          <p class="font-semibold text-slate-800">Tastatur-Schnelleingabe, Kurs-CSV-Import & Berater-Upgrade</p>
+          <p class="font-semibold text-slate-800">Schülerdaten-Editor, Kurs-CSV & Berater-Upgrade</p>
           <ul class="list-disc list-inside text-slate-600 space-y-0.5 leading-relaxed text-[11px]">
             <li><strong>Schülerdaten bearbeiten:</strong> Klick auf Namen öffnet Bearbeitung von Name, Krankheitstagen (mit +/- Stepper) und Notizen.</li>
-            <li><strong>Tastatur-Schnelleingabe:</strong> Noten (1-6, +, -) und Statuskürzel (o, f, n, 0, i, b, h) direkt über die Tastatur eintragen; mit Enter oder Pfeiltasten sofort zum nächsten Kind springen.</li>
             <li><strong>Kursname in CSV & Kurs-Neuanlage:</strong> CSV-Export enthält Kursnamen; beim Import wird automatisch ein neuer Kurs angelegt.</li>
             <li><strong>Elternsprechtagsberater ausklappbar:</strong> Standardmäßig eingeklappt, per Klick ausklappbar.</li>
             <li><strong>Isolierter Druck:</strong> Drucken-Schaltfläche druckt ausschließlich den Elternsprechtagsbericht ohne Kopfzeilen oder Menüs.</li>
@@ -732,7 +752,7 @@
         <div class="border-l-2 border-slate-300 pl-2.5 flex flex-col gap-1">
           <div class="flex items-center justify-between">
             <span class="font-bold text-slate-700 bg-slate-100 px-1.5 py-0.2 rounded text-[10px]">v1.6.0</span>
-            <span class="text-slate-400 text-[9px]">Herbst 2026</span>
+            <span class="text-slate-500 font-medium text-[10px]">05.09.2026</span>
           </div>
           <p class="font-semibold text-slate-800">Klasse 5a, Spalten-Massenaktionen & Multi-Kurs CSV</p>
           <ul class="list-disc list-inside text-slate-600 space-y-0.5 leading-relaxed text-[11px]">
@@ -746,7 +766,7 @@
         <div class="border-l-2 border-slate-300 pl-2.5 flex flex-col gap-1">
           <div class="flex items-center justify-between">
             <span class="font-bold text-slate-700 bg-slate-100 px-1.5 py-0.2 rounded text-[10px]">v1.5.5</span>
-            <span class="text-slate-400 text-[9px]">Herbst 2026</span>
+            <span class="text-slate-500 font-medium text-[10px]">03.09.2026</span>
           </div>
           <p class="font-semibold text-slate-800">Spalten-Schutz, Notensystem & Spaltenverschiebung</p>
         </div>
@@ -1976,9 +1996,240 @@
       updateCompactHeaderInfo();
     }
 
-    
-    
-    // Globaler Tastatur-Listener: Schließt geöffnete Popovers/Modals bei Tastatureingaben in der Tabelle
+    // Status- und Freitext-Auflösung (unterstützt Systemstatus, Noten und beliebige Freitexte)
+    function resolveStatusInfo(value) {
+      const defaultStat = appData.statuses.find(s => s.id === 'stat_nb') || appData.statuses[0] || { id: 'stat_nb', label: 'Nicht begonnen', short: 'NB', color: '#94a3b8' };
+
+      if (!value || value === 'stat_nb') {
+        return {
+          isStatus: true,
+          statusId: defaultStat.id,
+          label: defaultStat.label,
+          short: defaultStat.short,
+          color: defaultStat.color,
+          bgColor: defaultStat.color + '22',
+          borderColor: defaultStat.color + '55'
+        };
+      }
+
+      // 1. Exakte ID
+      const byId = appData.statuses.find(s => s.id === value);
+      if (byId) {
+        return {
+          isStatus: true,
+          statusId: byId.id,
+          label: byId.label,
+          short: byId.short,
+          color: byId.color,
+          bgColor: byId.color + '22',
+          borderColor: byId.color + '55'
+        };
+      }
+
+      // 2. Kürzel (z. B. "1", "1+", "OK", "NB", "IB")
+      const trimmed = String(value).trim();
+      const byShort = appData.statuses.find(s => s.short.toLowerCase() === trimmed.toLowerCase());
+      if (byShort) {
+        return {
+          isStatus: true,
+          statusId: byShort.id,
+          label: byShort.label,
+          short: byShort.short,
+          color: byShort.color,
+          bgColor: byShort.color + '22',
+          borderColor: byShort.color + '55'
+        };
+      }
+
+      // 3. Bezeichnung (z. B. "Abgeschlossen", "Note 1")
+      const byLabel = appData.statuses.find(s => s.label.toLowerCase() === trimmed.toLowerCase());
+      if (byLabel) {
+        return {
+          isStatus: true,
+          statusId: byLabel.id,
+          label: byLabel.label,
+          short: byLabel.short,
+          color: byLabel.color,
+          bgColor: byLabel.color + '22',
+          borderColor: byLabel.color + '55'
+        };
+      }
+
+      // 4. Freitext (Notenpunkte wie 15, 2/10, Prozent, Wörter wie krank, fehlt, A*, etc.)
+      const isNumberOrScore = /^[\d.,/%+ -]+$/.test(trimmed);
+      return {
+        isStatus: false,
+        statusId: null,
+        label: trimmed,
+        short: trimmed,
+        color: isNumberOrScore ? '#1e3a8a' : '#334155',
+        bgColor: isNumberOrScore ? '#eff6ff' : '#f8fafc',
+        borderColor: isNumberOrScore ? '#93c5fd' : '#cbd5e1'
+      };
+    }
+
+    function updateCellButtonVisual(btn, value) {
+      if (!btn) return;
+      const info = resolveStatusInfo(value);
+      btn.style.backgroundColor = info.bgColor;
+      btn.style.color = info.color;
+      btn.style.border = `1px solid ${info.borderColor}`;
+      btn.title = info.label;
+      if (info.isStatus) {
+        btn.innerHTML = `
+          <span class="w-1.5 h-1.5 rounded-full shrink-0" style="background-color: ${info.color}"></span>
+          <span class="truncate text-[10px]">${escapeHTML(info.short)}</span>
+        `;
+      } else {
+        btn.innerHTML = `
+          <i class="fa-solid fa-pen text-[7px] opacity-40 shrink-0"></i>
+          <span class="truncate text-[10px] font-semibold">${escapeHTML(info.short)}</span>
+        `;
+      }
+    }
+
+    function saveCellProgressValue(studentId, taskId, val, courseId = null) {
+      const course = courseId ? appData.courses.find(c => c.id === courseId) : getActiveCourse();
+      if (!course) return;
+
+      const key = `${studentId}_${taskId}`;
+      const trimmed = (val !== null && val !== undefined) ? String(val).trim() : '';
+
+      let targetValue;
+      if (!trimmed) {
+        targetValue = 'stat_nb';
+      } else {
+        const byId = appData.statuses.find(s => s.id === trimmed);
+        if (byId) {
+          targetValue = byId.id;
+        } else {
+          const byShort = appData.statuses.find(s => s.short.toLowerCase() === trimmed.toLowerCase());
+          if (byShort) {
+            targetValue = byShort.id;
+          } else {
+            const byLabel = appData.statuses.find(s => s.label.toLowerCase() === trimmed.toLowerCase());
+            if (byLabel) {
+              targetValue = byLabel.id;
+            } else {
+              targetValue = trimmed;
+            }
+          }
+        }
+      }
+
+      const prev = course.progress[key];
+      if (prev !== targetValue) {
+        pushUndoState(`Wert ${targetValue} eingetragen`);
+        course.progress[key] = targetValue;
+        saveToDB();
+      }
+
+      const btn = document.querySelector(`.status-cell-btn[data-student-id="${studentId}"][data-task-id="${taskId}"]`);
+      if (btn) {
+        updateCellButtonVisual(btn, targetValue);
+      }
+    }
+
+    function startInlineCellEdit(btn, studentId, taskId, rowIdx, colIdx, initialChar = null, selectAll = false) {
+      const course = getActiveCourse();
+      if (!course) return;
+
+      closeStatusPopover();
+      closeColumnActionPopover();
+
+      // Vorherige aktive Inline-Inputs sauber beenden
+      document.querySelectorAll('.cell-inline-input').forEach(inp => inp.blur());
+
+      const key = `${studentId}_${taskId}`;
+      const rawVal = course.progress[key] || '';
+      const info = resolveStatusInfo(rawVal);
+      const initialVal = info.isStatus ? (info.statusId === 'stat_nb' ? '' : info.short) : info.label;
+
+      const parentTd = btn.parentElement;
+      if (!parentTd) return;
+
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'cell-inline-input w-full h-[22px] py-0 px-1 rounded text-[10px] font-bold text-center border-2 border-emerald-500 bg-white shadow-xs focus:outline-none focus:ring-1 focus:ring-emerald-400 z-20 text-slate-900';
+      input.setAttribute('data-student-id', studentId);
+      input.setAttribute('data-task-id', taskId);
+      input.setAttribute('data-row-idx', rowIdx);
+      input.setAttribute('data-col-idx', colIdx);
+
+      if (initialChar !== null) {
+        input.value = initialChar;
+      } else {
+        input.value = initialVal;
+      }
+
+      btn.style.display = 'none';
+      parentTd.appendChild(input);
+      input.focus();
+
+      if (selectAll && initialChar === null) {
+        input.select();
+      } else {
+        input.setSelectionRange(input.value.length, input.value.length);
+      }
+
+      let finished = false;
+      const finishEdit = (commit = true, moveDir = null) => {
+        if (finished) return;
+        finished = true;
+
+        const finalVal = input.value;
+        input.remove();
+        btn.style.display = '';
+
+        if (commit) {
+          saveCellProgressValue(studentId, taskId, finalVal);
+        }
+
+        if (moveDir) {
+          if (moveDir === 'down') focusCell(rowIdx + 1, colIdx);
+          else if (moveDir === 'up') focusCell(rowIdx - 1, colIdx);
+          else if (moveDir === 'right') {
+            if (!focusCell(rowIdx, colIdx + 1)) {
+              focusCell(rowIdx + 1, 0);
+            }
+          } else if (moveDir === 'left') {
+            if (!focusCell(rowIdx, colIdx - 1)) {
+              focusCell(rowIdx - 1, course.tasks.length - 1);
+            }
+          }
+        } else {
+          focusCell(rowIdx, colIdx);
+        }
+      };
+
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          e.stopPropagation();
+          finishEdit(true, e.shiftKey ? 'up' : 'down');
+        } else if (e.key === 'Tab') {
+          e.preventDefault();
+          e.stopPropagation();
+          finishEdit(true, e.shiftKey ? 'left' : 'right');
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          e.stopPropagation();
+          finishEdit(false, null);
+        } else if (e.key === 'ArrowDown' && input.selectionStart === input.value.length) {
+          e.preventDefault();
+          finishEdit(true, 'down');
+        } else if (e.key === 'ArrowUp' && input.selectionStart === 0) {
+          e.preventDefault();
+          finishEdit(true, 'up');
+        }
+      });
+
+      input.addEventListener('blur', () => {
+        finishEdit(true, null);
+      });
+    }
+
+    // Globaler Tastatur-Listener: Schließt Popovers oder leitet Tastatureingaben nahtlos in die Zelle weiter
     document.addEventListener('keydown', (e) => {
       if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
 
@@ -1988,12 +2239,27 @@
           closeStatusPopover();
           return;
         }
-        const cellShortcuts = ['1', '2', '3', '4', '5', '6', '+', '-', '=', 'o', 'O', 'f', 'F', 'n', 'N', '0', 'i', 'I', 'b', 'B', 'h', 'H', 'Enter', 'Tab', 'ArrowDown', 'ArrowUp', 'ArrowRight', 'ArrowLeft'];
-        if (cellShortcuts.includes(e.key)) {
+
+        // Wenn ein druckbares Zeichen getippt wird, Popover schließen und direkt in der Zelle tippen
+        if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey && currentPopoverStudentId && currentPopoverTaskId) {
+          const sId = currentPopoverStudentId;
+          const tId = currentPopoverTaskId;
+          const targetBtn = document.querySelector(`.status-cell-btn[data-student-id="${sId}"][data-task-id="${tId}"]`);
           closeStatusPopover();
           closeColumnActionPopover();
           document.querySelectorAll('.fixed.inset-0:not(.hidden)').forEach(m => m.classList.add('hidden'));
+          if (targetBtn) {
+            const rowIdx = parseInt(targetBtn.getAttribute('data-row-idx'), 10) || 0;
+            const colIdx = parseInt(targetBtn.getAttribute('data-col-idx'), 10) || 0;
+            e.preventDefault();
+            startInlineCellEdit(targetBtn, sId, tId, rowIdx, colIdx, e.key, false);
+            return;
+          }
         }
+
+        closeStatusPopover();
+        closeColumnActionPopover();
+        document.querySelectorAll('.fixed.inset-0:not(.hidden)').forEach(m => m.classList.add('hidden'));
       }
     });
 
@@ -2011,14 +2277,13 @@
       const course = getActiveCourse();
       if (!course) return;
 
-      // Schließt Popovers und offene Modals sofort, wenn Tastatur-Eingaben beginnen
       closeStatusPopover();
       closeColumnActionPopover();
       document.querySelectorAll('.fixed.inset-0:not(.hidden)').forEach(m => m.classList.add('hidden'));
 
       const key = e.key;
 
-      // Enter: Springt zum nächsten Schüler in derselben Spalte
+      // Enter: Springt zum nächsten Schüler in derselben Spalte (Shift+Enter: nach oben)
       if (key === 'Enter') {
         e.preventDefault();
         if (e.shiftKey) {
@@ -2026,6 +2291,13 @@
         } else {
           focusCell(rowIdx + 1, colIdx);
         }
+        return;
+      }
+
+      // F2: Bestehenden Wert editieren
+      if (key === 'F2') {
+        e.preventDefault();
+        startInlineCellEdit(e.currentTarget, studentId, taskId, rowIdx, colIdx, null, true);
         return;
       }
 
@@ -2066,54 +2338,25 @@
         return;
       }
 
-      // Schnelleingabe von Noten (1-6) und Stufen (+ / -)
-      let targetStatusId = null;
-      const progressKey = `${studentId}_${taskId}`;
-      const currentStatusId = course.progress[progressKey] || 'stat_nb';
-
-      if (['1', '2', '3', '4', '5', '6'].includes(key)) {
-        targetStatusId = `stat_note_${key}`;
-      } else if (key === '+' || key === '=') {
-        const match = currentStatusId.match(/^stat_note_([1-5])/);
-        if (match) {
-          targetStatusId = `stat_note_${match[1]}p`;
-        }
-      } else if (key === '-') {
-        const match = currentStatusId.match(/^stat_note_([1-5])/);
-        if (match) {
-          targetStatusId = `stat_note_${match[1]}m`;
-        }
-      } else if (key.toLowerCase() === 'o' || key.toLowerCase() === 'f') {
-        targetStatusId = 'stat_fertig';
-      } else if (key.toLowerCase() === 'n' || key === '0') {
-        targetStatusId = 'stat_nb';
-      } else if (key.toLowerCase() === 'i' || key.toLowerCase() === 'b') {
-        targetStatusId = 'stat_arbeit';
-      } else if (key.toLowerCase() === 'h') {
-        targetStatusId = 'stat_hilfe';
-      } else if (key === 'Backspace' || key === 'Delete') {
-        targetStatusId = 'stat_nb';
+      // Leertaste (Space): Popover öffnen
+      if (key === ' ') {
+        e.preventDefault();
+        openStatusPopover(e, studentId, taskId);
+        return;
       }
 
-      if (targetStatusId) {
+      // Backspace / Delete: Feld leeren (auf NB zurücksetzen)
+      if (key === 'Backspace' || key === 'Delete') {
         e.preventDefault();
-        const statObj = appData.statuses.find(s => s.id === targetStatusId);
-        if (statObj) {
-          pushUndoState(`Status ${statObj.label} eingetragen`);
-          course.progress[progressKey] = targetStatusId;
-          saveToDB();
+        saveCellProgressValue(studentId, taskId, 'stat_nb');
+        return;
+      }
 
-          // Direktes DOM-Update für maximale Geschwindigkeit ohne Fokusverlust
-          const btn = e.currentTarget;
-          btn.style.backgroundColor = statObj.color + '22';
-          btn.style.color = statObj.color;
-          btn.style.border = `1px solid ${statObj.color}55`;
-          btn.innerHTML = `
-            <span class="w-1.5 h-1.5 rounded-full shrink-0" style="background-color: ${statObj.color}"></span>
-            <span class="truncate text-[10px]">${escapeHTML(statObj.short)}</span>
-          `;
-          updateStatsBar();
-        }
+      // Beliebiges druckbares Zeichen: Startet freie Direkteingabe im Feld!
+      if (key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        startInlineCellEdit(e.currentTarget, studentId, taskId, rowIdx, colIdx, key, false);
+        return;
       }
     }
 
@@ -2300,9 +2543,8 @@
             td.style.maxWidth = `${taskColWidth}px`;
 
             const key = `${student.id}_${task.id}`;
-            const defaultStat = appData.statuses.find(s => s.id === 'stat_nb') || appData.statuses[0];
-            const currentStatusId = course.progress[key] || defaultStat?.id;
-            const statusObj = appData.statuses.find(s => s.id === currentStatusId) || defaultStat || { label: 'Offen', short: 'NB', color: '#94a3b8' };
+            const rawVal = course.progress[key] || '';
+            const statusInfo = resolveStatusInfo(rawVal);
 
             const pill = document.createElement('button');
             pill.className = 'status-cell-btn w-full h-[22px] py-0 px-1 rounded text-[10px] font-bold transition transform active:scale-95 flex items-center justify-center gap-1 cursor-pointer shadow-2xs focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-1';
@@ -2311,15 +2553,27 @@
             pill.setAttribute('data-col-idx', colIdx);
             pill.setAttribute('data-student-id', student.id);
             pill.setAttribute('data-task-id', task.id);
-            pill.style.backgroundColor = statusObj.color + '22';
-            pill.style.color = statusObj.color;
-            pill.style.border = `1px solid ${statusObj.color}55`;
-            pill.innerHTML = `
-              <span class="w-1.5 h-1.5 rounded-full shrink-0" style="background-color: ${statusObj.color}"></span>
-              <span class="truncate text-[10px]">${escapeHTML(statusObj.short)}</span>
-            `;
+            pill.style.backgroundColor = statusInfo.bgColor;
+            pill.style.color = statusInfo.color;
+            pill.style.border = `1px solid ${statusInfo.borderColor}`;
+            pill.title = statusInfo.label;
+            if (statusInfo.isStatus) {
+              pill.innerHTML = `
+                <span class="w-1.5 h-1.5 rounded-full shrink-0" style="background-color: ${statusInfo.color}"></span>
+                <span class="truncate text-[10px]">${escapeHTML(statusInfo.short)}</span>
+              `;
+            } else {
+              pill.innerHTML = `
+                <i class="fa-solid fa-pen text-[7px] opacity-40 shrink-0"></i>
+                <span class="truncate text-[10px] font-semibold">${escapeHTML(statusInfo.short)}</span>
+              `;
+            }
 
             pill.onclick = (e) => openStatusPopover(e, student.id, task.id);
+            pill.ondblclick = (e) => {
+              e.stopPropagation();
+              startInlineCellEdit(pill, student.id, task.id, rowIdx, colIdx, null, true);
+            };
             pill.onkeydown = (e) => handleCellKeydown(e, student.id, task.id, rowIdx, colIdx);
             td.appendChild(pill);
           }
@@ -2347,13 +2601,19 @@
 
       const popover = document.getElementById('statusDropdownPopover');
       const itemsContainer = document.getElementById('statusDropdownItems');
+      const freeTextInput = document.getElementById('popoverFreeTextInput');
       itemsContainer.innerHTML = '';
 
       const course = courseId ? appData.courses.find(c => c.id === courseId) : getActiveCourse();
       if (!course) return;
       const key = `${studentId}_${taskId}`;
-      const defaultStat = appData.statuses.find(s => s.id === 'stat_nb') || appData.statuses[0];
-      const activeStatusId = course.progress[key] || defaultStat?.id;
+      const rawVal = course.progress[key] || '';
+      const info = resolveStatusInfo(rawVal);
+      const activeStatusId = info.isStatus ? info.statusId : null;
+
+      if (freeTextInput) {
+        freeTextInput.value = info.isStatus ? (info.statusId === 'stat_nb' ? '' : info.short) : info.label;
+      }
 
       const standardGroup = appData.statuses.filter(s => !s.id.startsWith('stat_note_'));
       const gradeGroup = appData.statuses.filter(s => s.id.startsWith('stat_note_'));
@@ -2405,12 +2665,21 @@
       }
 
       const rect = e.currentTarget.getBoundingClientRect();
-      const topPos = Math.min(window.innerHeight - 270, rect.bottom + 4);
-      const leftPos = Math.min(window.innerWidth - 210, Math.max(8, rect.left));
+      const topPos = Math.min(window.innerHeight - 300, rect.bottom + 4);
+      const leftPos = Math.min(window.innerWidth - 220, Math.max(8, rect.left));
 
       popover.style.top = `${topPos}px`;
       popover.style.left = `${leftPos}px`;
       popover.classList.remove('hidden');
+    }
+
+    function handlePopoverCustomSubmit(e) {
+      if (e) e.preventDefault();
+      if (!currentPopoverStudentId || !currentPopoverTaskId) return;
+      const input = document.getElementById('popoverFreeTextInput');
+      const val = input ? input.value : '';
+      saveCellProgressValue(currentPopoverStudentId, currentPopoverTaskId, val, currentPopoverCourseId);
+      closeStatusPopover();
     }
 
     function closeStatusPopover() {
@@ -2421,15 +2690,8 @@
     }
 
     function selectStatusFromPopover(studentId, taskId, statusId) {
-      const course = currentPopoverCourseId ? appData.courses.find(c => c.id === currentPopoverCourseId) : getActiveCourse();
-      if (!course) return;
-
-      pushUndoState('Status geändert');
-      const key = `${studentId}_${taskId}`;
-      course.progress[key] = statusId;
+      saveCellProgressValue(studentId, taskId, statusId, currentPopoverCourseId);
       closeStatusPopover();
-      saveToDB();
-      renderTable();
       if (currentView === 'card') renderCardView();
     }
 
@@ -2827,9 +3089,8 @@
         card.className = 'bg-white p-3 rounded-xl border border-slate-200 shadow-2xs hover:shadow-xs transition flex flex-col justify-between gap-2.5';
 
         const key = `${student.id}_${task.id}`;
-        const defaultStat = appData.statuses.find(s => s.id === 'stat_nb') || appData.statuses[0];
-        const currentStatusId = course.progress[key] || defaultStat?.id;
-        const statusObj = appData.statuses.find(s => s.id === currentStatusId) || defaultStat;
+        const rawVal = course.progress[key] || '';
+        const info = resolveStatusInfo(rawVal);
 
         card.innerHTML = `
           <div class="flex items-start justify-between gap-2">
@@ -2839,11 +3100,11 @@
           <div class="flex flex-col gap-1 pt-1 border-t border-slate-100">
             <button onclick="openStatusPopover(event, '${student.id}', '${task.id}')" 
                     class="status-cell-btn w-full text-[11px] font-semibold px-2.5 py-1.5 rounded-lg transition hover:scale-[1.02] active:scale-95 flex items-center justify-between gap-1.5 cursor-pointer shadow-2xs" 
-                    style="background-color: ${statusObj.color}22; color: ${statusObj.color}; border: 1px solid ${statusObj.color}55;">
+                    style="background-color: ${info.bgColor}; color: ${info.color}; border: 1px solid ${info.borderColor};">
               <div class="flex items-center gap-1.5 min-w-0">
-                <span class="w-2 h-2 rounded-full shrink-0" style="background-color: ${statusObj.color}"></span>
-                <span class="truncate font-bold">${escapeHTML(statusObj.short)}</span>
-                <span class="text-[10px] opacity-75 truncate hidden xs:inline">(${escapeHTML(statusObj.label)})</span>
+                ${info.isStatus ? `<span class="w-2 h-2 rounded-full shrink-0" style="background-color: ${info.color}"></span>` : `<i class="fa-solid fa-pen text-[9px] opacity-60 shrink-0"></i>`}
+                <span class="truncate font-bold">${escapeHTML(info.short)}</span>
+                ${info.isStatus && info.label !== info.short ? `<span class="text-[10px] opacity-75 truncate hidden xs:inline">(${escapeHTML(info.label)})</span>` : ''}
               </div>
               <i class="fa-solid fa-chevron-down text-[9px] opacity-70 shrink-0"></i>
             </button>
@@ -2938,13 +3199,13 @@
         } else {
           c.tasks.forEach(t => {
             const key = `${s.id}_${t.id}`;
-            const stId = c.progress[key] || appData.statuses[0]?.id;
-            const stObj = appData.statuses.find(x => x.id === stId) || appData.statuses[0];
+            const rawVal = c.progress[key] || '';
+            const stObj = resolveStatusInfo(rawVal);
             tasksPills += `
               <button type="button" 
                       onclick="openStatusPopover(event, '${s.id}', '${t.id}', '${c.id}')"
                       class="touch-btn flex items-center gap-1 text-[10px] px-2 py-0.5 rounded border hover:scale-105 active:scale-95 transition cursor-pointer shadow-2xs" 
-                      style="background-color: ${stObj.color}18; border-color: ${stObj.color}45; color: ${stObj.color};"
+                      style="background-color: ${stObj.bgColor}; border-color: ${stObj.borderColor}; color: ${stObj.color};" 
                       title="${escapeHTML(t.title)}: ${escapeHTML(stObj.label)} (Klicken zum Bearbeiten)">
                 <span class="font-medium text-slate-700 truncate max-w-[110px]">${escapeHTML(t.title)}:</span>
                 <span class="font-bold">${escapeHTML(stObj.short)}</span>
@@ -3218,9 +3479,9 @@
         const row = [s.lastName || '', s.firstName || '', levelLabel, s.absenceCount || 0];
         course.tasks.forEach(t => {
           const key = `${s.id}_${t.id}`;
-          const statusId = course.progress[key] || appData.statuses[0]?.id;
-          const statusObj = appData.statuses.find(st => st.id === statusId);
-          row.push(statusObj ? statusObj.label : '');
+          const rawVal = course.progress[key] || '';
+          const info = resolveStatusInfo(rawVal);
+          row.push(info.label);
         });
         row.push(s.note || '');
         rows.push(row);
@@ -3262,9 +3523,9 @@
         const row = [s.lastName || '', s.firstName || '', levelLabel];
         course.tasks.forEach(t => {
           const key = `${s.id}_${t.id}`;
-          const statusId = course.progress[key] || appData.statuses[0]?.id;
-          const statusObj = appData.statuses.find(st => st.id === statusId);
-          row.push(statusObj ? statusObj.short : '-');
+          const rawVal = course.progress[key] || '';
+          const info = resolveStatusInfo(rawVal);
+          row.push(info.short || '-');
         });
         row.push(s.absenceCount || 0);
         return row;
@@ -3320,9 +3581,9 @@
         ];
         course.tasks.forEach(t => {
           const key = `${s.id}_${t.id}`;
-          const statusId = course.progress[key] || appData.statuses[0]?.id;
-          const statusObj = appData.statuses.find(st => st.id === statusId);
-          row.push(`"${(statusObj ? statusObj.label : '').replace(/"/g, '""')}"`);
+          const rawVal = course.progress[key] || '';
+          const info = resolveStatusInfo(rawVal);
+          row.push(`"${(info.label || '').replace(/"/g, '""')}"`);
         });
         row.push(`"${(s.note || '').replace(/"/g, '""')}"`);
         csv += row.join(';') + '\r\n';
@@ -3368,9 +3629,9 @@
           ];
           course.tasks.forEach(t => {
             const key = `${s.id}_${t.id}`;
-            const statusId = course.progress[key] || appData.statuses[0]?.id;
-            const statusObj = appData.statuses.find(st => st.id === statusId);
-            row.push(`"${(statusObj ? statusObj.label : '').replace(/"/g, '""')}"`);
+            const rawVal = course.progress[key] || '';
+            const info = resolveStatusInfo(rawVal);
+            row.push(`"${(info.label || '').replace(/"/g, '""')}"`);
           });
           row.push(`"${(s.note || '').replace(/"/g, '""')}"`);
           csv += row.join(';') + '\r\n';
@@ -3583,14 +3844,8 @@
         taskCols.forEach((tCol, tIdx) => {
           const cellVal = (cols[tCol.idx] || '').trim();
           if (cellVal) {
-            foundStatuses.add(cellVal);
-            const matchingStatus = appData.statuses.find(st =>
-              st.label.toLowerCase() === cellVal.toLowerCase() ||
-              st.short.toLowerCase() === cellVal.toLowerCase()
-            );
-            progress[`${sId}_${tasks[tIdx].id}`] = matchingStatus
-              ? matchingStatus.id
-              : 'stat_' + encodeURIComponent(cellVal).replace(/%/g, '_');
+            const info = resolveStatusInfo(cellVal);
+            progress[`${sId}_${tasks[tIdx].id}`] = info.isStatus ? info.statusId : cellVal;
           }
         });
       }
