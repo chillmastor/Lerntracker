@@ -58,6 +58,19 @@
     tr:hover td.sticky-col {
       background-color: #f8fafc;
     }
+    .student-drag-handle {
+      touch-action: none;
+    }
+    tr.drop-indicator-top > td {
+      border-top: 3px solid #059669 !important;
+    }
+    tr.drop-indicator-bottom > td {
+      border-bottom: 3px solid #059669 !important;
+    }
+    tr.row-dragging > td {
+      opacity: 0.45;
+      background-color: #ecfdf5 !important;
+    }
     ::-webkit-scrollbar {
       width: 5px;
       height: 5px;
@@ -124,7 +137,7 @@
             <div class="flex items-center gap-1.5">
               <h1 class="font-bold text-slate-900 leading-tight text-xs sm:text-sm">Lernfortschritts-Tracker</h1>
               <button onclick="openModal('changelogModal')" class="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded-md bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border border-emerald-300 transition cursor-pointer flex items-center gap-0.5 shadow-2xs" title="Versionshinweise ansehen">
-                <span>v1.8.0</span>
+                <span>v1.9.0</span>
                 <i class="fa-solid fa-circle-info text-[8px] text-emerald-600"></i>
               </button>
               <span id="studentModeBadge" class="hidden text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.2 rounded-md bg-indigo-100 text-indigo-800 border border-indigo-200">
@@ -213,7 +226,7 @@
           <i class="fa-solid fa-graduation-cap text-emerald-600 shrink-0 text-xs"></i>
           <span class="font-bold text-slate-900 truncate text-xs" id="compactCourseTitle">Kurs</span>
           <button onclick="openModal('changelogModal')" class="text-[9px] font-mono font-bold px-1 py-0.2 rounded bg-emerald-100 text-emerald-800 border border-emerald-300 shrink-0" title="Changelog">
-            v1.8.0
+            v1.9.0
           </button>
         </div>
 
@@ -283,7 +296,7 @@
               <select id="sortSelect" onchange="changeSort(this.value)" class="bg-transparent text-[11px] font-medium text-slate-700 focus:outline-none cursor-pointer">
                 <option value="last">Nachname (A-Z)</option>
                 <option value="first">Vorname (A-Z)</option>
-                <option value="custom">Eigene Reihenfolge</option>
+                <option value="custom">Eigene Reihenfolge (Drag & Drop)</option>
               </select>
             </div>
 
@@ -693,10 +706,23 @@
       </div>
 
       <div class="overflow-y-auto pr-1 flex flex-col gap-3 text-xs">
-        <!-- Version 1.8.0 -->
+        <!-- Version 1.9.0 -->
         <div class="border-l-2 border-emerald-500 pl-2.5 flex flex-col gap-1">
           <div class="flex items-center justify-between">
-            <span class="font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200 text-[10px]">v1.8.0 (Aktuell)</span>
+            <span class="font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200 text-[10px]">v1.9.0 (Aktuell)</span>
+            <span class="text-slate-500 font-medium text-[10px]">07.09.2026</span>
+          </div>
+          <p class="font-semibold text-slate-800">Pinch-to-Zoom (iPad) & Drag & Drop Zeilenverschiebung</p>
+          <ul class="list-disc list-inside text-slate-600 space-y-0.5 leading-relaxed text-[11px]">
+            <li><strong>Pinch-to-Zoom für iPad & Tablets:</strong> Stufenloses Hinein- und Herauszoomen der gesamten Tabelle mit der gewohnten Zwei-Finger-Geste auf dem iPad – direkt und flüssig ohne Verzögerung, mit automatischer Zustandsspeicherung.</li>
+            <li><strong>Drag & Drop Zeilenverschiebung:</strong> Die bisherigen Pfeil-Schaltflächen wurden durch einen Ziehbereich mit 3 Strichen (<i class="fa-solid fa-bars text-[9px]"></i>) ersetzt. Durch Gedrückthalten und Ziehen auf dem iPad oder per Maus kann jede Schülerzeile mit Live-Vorschau und visueller Zielmarkierung an die gewünschte Position verschoben werden.</li>
+          </ul>
+        </div>
+
+        <!-- Version 1.8.0 -->
+        <div class="border-l-2 border-slate-300 pl-2.5 flex flex-col gap-1">
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-slate-700 bg-slate-100 px-1.5 py-0.2 rounded text-[10px]">v1.8.0</span>
             <span class="text-slate-500 font-medium text-[10px]">07.09.2026</span>
           </div>
           <p class="font-semibold text-slate-800">Freie Tastatur-Eingabe, Tabellennavigation & Inline-Editor</p>
@@ -1341,6 +1367,8 @@
       applyStudentModeVisuals();
       applyCollapseVisuals();
       renderAll();
+      initPinchToZoom();
+      initStudentRowDragAndDrop();
 
       window.addEventListener('resize', () => {
         if (appData) {
@@ -1928,6 +1956,302 @@
       if (currentView === 'card') renderCardView();
     }
 
+    function reorderStudentTo(studentId, targetStudentId, placeAfter = false) {
+      const course = getActiveCourse();
+      if (!course || !studentId || !targetStudentId || studentId === targetStudentId) return;
+
+      if (appData.sortOrder !== 'custom') {
+        appData.sortOrder = 'custom';
+        const sortSel = document.getElementById('sortSelect');
+        if (sortSel) sortSel.value = 'custom';
+      }
+
+      // Aktuelle sichtbare Reihenfolge als Basis für customOrder verwenden
+      const currentList = getSortedStudents(course.students);
+      currentList.forEach((s, idx) => {
+        s.customOrder = idx;
+      });
+
+      const fromIndex = currentList.findIndex(s => s.id === studentId);
+      if (fromIndex === -1) return;
+
+      const [moved] = currentList.splice(fromIndex, 1);
+      let toIndex = currentList.findIndex(s => s.id === targetStudentId);
+      if (toIndex === -1) return;
+
+      if (placeAfter) {
+        toIndex += 1;
+      }
+      currentList.splice(toIndex, 0, moved);
+
+      currentList.forEach((s, idx) => {
+        s.customOrder = idx;
+      });
+      course.students = currentList;
+
+      pushUndoState('Schülerreihenfolge per Drag & Drop geändert');
+      saveToDB();
+      renderTable();
+      if (currentView === 'card') renderCardView();
+      showToast('Reihenfolge aktualisiert');
+    }
+
+    let isPinching = false;
+    let pinchStartDistance = 0;
+    let pinchStartZoom = 1.0;
+    let lastPinchZoom = 1.0;
+
+    function initPinchToZoom() {
+      // Standard Safari-Pinch-Zoom unterbinden, damit der eigene Tabellen-Zoom greift
+      document.addEventListener('gesturestart', (e) => {
+        e.preventDefault();
+      }, { passive: false });
+
+      document.addEventListener('gesturechange', (e) => {
+        e.preventDefault();
+      }, { passive: false });
+
+      document.addEventListener('gestureend', (e) => {
+        e.preventDefault();
+      }, { passive: false });
+
+      document.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 2) {
+          if (window.isDraggingRow) return;
+
+          // Kein Pinch, falls ein modaler Dialog geöffnet ist
+          const openModal = document.querySelector('div[id$="Modal"]:not(.hidden)');
+          if (openModal && openModal.contains(e.target)) return;
+
+          isPinching = true;
+          isFitToScreenActive = false;
+          updateFitScreenBtnVisuals(false);
+
+          const dx = e.touches[0].clientX - e.touches[1].clientX;
+          const dy = e.touches[0].clientY - e.touches[1].clientY;
+          pinchStartDistance = Math.hypot(dx, dy);
+          pinchStartZoom = appData.zoomLevel || 1.0;
+          lastPinchZoom = pinchStartZoom;
+
+          const wrapper = document.getElementById('appWrapper');
+          if (wrapper) {
+            wrapper.style.transition = 'none';
+          }
+        }
+      }, { passive: false });
+
+      document.addEventListener('touchmove', (e) => {
+        if (isPinching && e.touches.length === 2) {
+          if (e.cancelable) e.preventDefault();
+
+          const dx = e.touches[0].clientX - e.touches[1].clientX;
+          const dy = e.touches[0].clientY - e.touches[1].clientY;
+          const currentDistance = Math.hypot(dx, dy);
+
+          if (pinchStartDistance > 10) {
+            const factor = currentDistance / pinchStartDistance;
+            let newZoom = pinchStartZoom * factor;
+            newZoom = Math.max(0.4, Math.min(1.5, newZoom));
+            lastPinchZoom = newZoom;
+            applyZoom(newZoom);
+          }
+        }
+      }, { passive: false });
+
+      const endPinch = () => {
+        if (isPinching) {
+          isPinching = false;
+          const wrapper = document.getElementById('appWrapper');
+          if (wrapper) {
+            wrapper.style.transition = '';
+          }
+          const finalZoom = Math.max(0.4, Math.min(1.5, Math.round(lastPinchZoom * 100) / 100));
+          appData.zoomLevel = finalZoom;
+          applyZoom(finalZoom);
+          updateCompactHeaderInfo();
+          saveToDB();
+        }
+      };
+
+      document.addEventListener('touchend', endPinch, { passive: false });
+      document.addEventListener('touchcancel', endPinch, { passive: false });
+    }
+
+    let studentDragState = null;
+    let dragFloatingChip = null;
+
+    function initStudentRowDragAndDrop() {
+      const onStart = (clientX, clientY, target, isTouch, e) => {
+        const handle = target.closest('.student-drag-handle');
+        if (!handle) return;
+        if (appData.isStudentMode) return;
+        if (isPinching) return;
+
+        const studentId = handle.getAttribute('data-student-id');
+        const course = getActiveCourse();
+        if (!course || !studentId) return;
+
+        const student = course.students.find(s => s.id === studentId);
+        const sourceRow = document.querySelector(`tr[data-student-id="${studentId}"]`);
+        if (!sourceRow) return;
+
+        if (isTouch && e.cancelable) {
+          e.preventDefault();
+        }
+
+        studentDragState = {
+          studentId,
+          studentName: student ? formatStudentDisplayName(student) : 'Schüler',
+          sourceRow,
+          startX: clientX,
+          startY: clientY,
+          isDragging: false,
+          targetStudentId: null,
+          placeAfter: false,
+          isTouch
+        };
+      };
+
+      const onMove = (clientX, clientY, e) => {
+        if (!studentDragState) return;
+
+        const dx = clientX - studentDragState.startX;
+        const dy = clientY - studentDragState.startY;
+
+        if (!studentDragState.isDragging) {
+          if (Math.hypot(dx, dy) > 4) {
+            studentDragState.isDragging = true;
+            window.isDraggingRow = true;
+
+            studentDragState.sourceRow.classList.add('row-dragging');
+            document.body.style.cursor = 'grabbing';
+            document.body.style.userSelect = 'none';
+
+            dragFloatingChip = document.createElement('div');
+            dragFloatingChip.id = 'dragFloatingChip';
+            dragFloatingChip.className = 'fixed pointer-events-none z-[99999] px-2.5 py-1 rounded-lg bg-emerald-700 text-white font-semibold text-xs shadow-2xl flex items-center gap-2 border border-emerald-400 opacity-95 transition-none';
+            dragFloatingChip.innerHTML = `<i class="fa-solid fa-bars text-[10px]"></i> <span>${escapeHTML(studentDragState.studentName)}</span>`;
+            document.body.appendChild(dragFloatingChip);
+          } else {
+            return;
+          }
+        }
+
+        if (e.cancelable) {
+          e.preventDefault();
+        }
+
+        if (dragFloatingChip) {
+          dragFloatingChip.style.left = `${clientX + 14}px`;
+          dragFloatingChip.style.top = `${clientY - 16}px`;
+        }
+
+        // Auto-Scroll bei Näherung an den Rand der Tabelle
+        const tableContainer = document.querySelector('.table-container');
+        if (tableContainer) {
+          const cRect = tableContainer.getBoundingClientRect();
+          if (clientY < cRect.top + 40 && clientY > cRect.top - 20) {
+            tableContainer.scrollTop -= 10;
+          } else if (clientY > cRect.bottom - 40 && clientY < cRect.bottom + 20) {
+            tableContainer.scrollTop += 10;
+          }
+        }
+
+        // Ziel-Zeile ermitteln
+        const hit = document.elementFromPoint(clientX, clientY);
+        const targetTr = hit ? hit.closest('tr[data-student-id]') : null;
+
+        // Bisherige Zielmarkierungen entfernen
+        document.querySelectorAll('tr.drop-indicator-top, tr.drop-indicator-bottom').forEach(r => {
+          r.classList.remove('drop-indicator-top', 'drop-indicator-bottom');
+        });
+
+        if (targetTr && targetTr !== studentDragState.sourceRow) {
+          const rect = targetTr.getBoundingClientRect();
+          const isBelow = clientY > (rect.top + rect.height / 2);
+          if (isBelow) {
+            targetTr.classList.add('drop-indicator-bottom');
+            studentDragState.placeAfter = true;
+          } else {
+            targetTr.classList.add('drop-indicator-top');
+            studentDragState.placeAfter = false;
+          }
+          studentDragState.targetStudentId = targetTr.getAttribute('data-student-id');
+        } else {
+          studentDragState.targetStudentId = null;
+        }
+      };
+
+      const onEnd = () => {
+        if (!studentDragState) return;
+
+        const wasDragging = studentDragState.isDragging;
+        const studentId = studentDragState.studentId;
+        const targetStudentId = studentDragState.targetStudentId;
+        const placeAfter = studentDragState.placeAfter;
+        const sourceRow = studentDragState.sourceRow;
+
+        if (dragFloatingChip && dragFloatingChip.parentNode) {
+          dragFloatingChip.parentNode.removeChild(dragFloatingChip);
+          dragFloatingChip = null;
+        }
+
+        if (sourceRow) {
+          sourceRow.classList.remove('row-dragging');
+        }
+
+        document.querySelectorAll('tr.drop-indicator-top, tr.drop-indicator-bottom').forEach(r => {
+          r.classList.remove('drop-indicator-top', 'drop-indicator-bottom');
+        });
+
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+        window.isDraggingRow = false;
+        studentDragState = null;
+
+        if (wasDragging && targetStudentId && targetStudentId !== studentId) {
+          reorderStudentTo(studentId, targetStudentId, placeAfter);
+        }
+      };
+
+      // Touch-Events für iPad / Mobile
+      document.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 1) {
+          onStart(e.touches[0].clientX, e.touches[0].clientY, e.target, true, e);
+        } else if (studentDragState && studentDragState.isDragging) {
+          onEnd();
+        }
+      }, { passive: false });
+
+      window.addEventListener('touchmove', (e) => {
+        if (studentDragState && e.touches.length === 1) {
+          onMove(e.touches[0].clientX, e.touches[0].clientY, e);
+        }
+      }, { passive: false });
+
+      window.addEventListener('touchend', onEnd, { passive: false });
+      window.addEventListener('touchcancel', onEnd, { passive: false });
+
+      // Maus-Events für Desktop
+      document.addEventListener('mousedown', (e) => {
+        if (e.button === 0) {
+          onStart(e.clientX, e.clientY, e.target, false, e);
+        }
+      });
+
+      window.addEventListener('mousemove', (e) => {
+        if (studentDragState && !studentDragState.isTouch) {
+          onMove(e.clientX, e.clientY, e);
+        }
+      });
+
+      window.addEventListener('mouseup', (e) => {
+        if (studentDragState && !studentDragState.isTouch) {
+          onEnd();
+        }
+      });
+    }
+
     function adjustZoom(delta) {
       isFitToScreenActive = false;
       updateFitScreenBtnVisuals(false);
@@ -2372,7 +2696,7 @@
       const taskColWidth = calculateDynamicTaskColWidth(course.tasks);
 
       const thStudent = document.createElement('th');
-      thStudent.className = 'py-1 px-1.5 sticky-col bg-slate-50 border-r border-slate-200 w-[144px] min-w-[144px] text-slate-700 select-none';
+      thStudent.className = 'py-1 px-1.5 sticky-col bg-slate-50 border-r border-slate-200 w-[156px] min-w-[156px] text-slate-700 select-none';
       thStudent.innerHTML = `
         <div class="flex items-center justify-between">
           <span class="font-bold text-[11px]">Schüler (${course.students.length})</span>
@@ -2454,6 +2778,7 @@
 
       filtered.forEach((student, rowIdx) => {
         const tr = document.createElement('tr');
+        tr.setAttribute('data-student-id', student.id);
         tr.className = 'hover:bg-slate-50/70 transition h-[26px]';
 
         const currentLevel = LEVEL_CONFIG[student.level || 'aufsteiger'] || LEVEL_CONFIG.aufsteiger;
@@ -2461,8 +2786,8 @@
 
         const tdName = document.createElement('td');
         tdName.className = 'py-0.5 px-1 sticky-col bg-white border-r border-slate-200 font-medium text-slate-800';
-        tdName.style.width = '144px';
-        tdName.style.minWidth = '144px';
+        tdName.style.width = '156px';
+        tdName.style.minWidth = '156px';
         
         tdName.innerHTML = `
           <div class="flex items-center justify-between gap-1 leading-none">
@@ -2482,16 +2807,12 @@
             </div>
 
             <div class="teacher-only flex items-center gap-0.5 shrink-0">
-              ${appData.sortOrder === 'custom' ? `
-                <div class="flex items-center bg-slate-100 rounded border border-slate-200 mr-0.5">
-                  <button onclick="moveStudentOrder('${student.id}', -1)" class="px-0.5 hover:text-emerald-600 text-[7px] transition cursor-pointer">
-                    <i class="fa-solid fa-chevron-up"></i>
-                  </button>
-                  <button onclick="moveStudentOrder('${student.id}', 1)" class="px-0.5 hover:text-emerald-600 text-[7px] transition cursor-pointer">
-                    <i class="fa-solid fa-chevron-down"></i>
-                  </button>
-                </div>
-              ` : ''}
+              <div class="student-drag-handle touch-none flex items-center justify-center w-4 h-4 rounded text-slate-400 hover:text-emerald-600 hover:bg-slate-100 active:bg-emerald-100 active:text-emerald-700 cursor-grab active:cursor-grabbing transition select-none mr-0.5"
+                   style="touch-action: none;"
+                   data-student-id="${student.id}"
+                   title="Zeile verschieben (3 Striche gedrückt halten und ziehen)">
+                <i class="fa-solid fa-bars text-[10px] pointer-events-none"></i>
+              </div>
 
               <button onclick="incrementAbsence('${student.id}')" oncontextmenu="event.preventDefault(); decrementAbsence('${student.id}')"
                       class="touch-btn px-1 py-0 h-4 rounded text-[9px] font-semibold border transition flex items-center gap-0.5 cursor-pointer ${student.absenceCount > 0 ? 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100' : 'bg-slate-50 text-slate-400 border-slate-200 hover:text-slate-700'}"
