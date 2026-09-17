@@ -289,6 +289,15 @@
             </button>
           </div>
 
+          <!-- Beratung / Warteschlange Umschalter (im Lehrkraft- & Smartboard-Modus verfügbar) -->
+          <div class="flex items-center gap-1.5 flex-wrap">
+            <button id="toggleQueueBarBtn" onclick="toggleQueueBar()" class="px-2.5 py-1 rounded-lg border border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-semibold flex items-center gap-1 transition cursor-pointer shadow-2xs" title="Beratungs-Warteschlange anzeigen/verbergen">
+              <i class="fa-solid fa-clipboard-list text-amber-600 text-[10px]"></i>
+              <span>Beratung</span>
+              <span id="queueBarBadgeCount" class="hidden px-1.5 py-0.2 rounded-full text-[9px] font-extrabold bg-amber-500 text-white">0</span>
+            </button>
+          </div>
+
           <!-- Filter & Suche -->
           <div class="flex items-center gap-1.5 flex-wrap w-full sm:w-auto">
             <div class="flex items-center gap-1 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-lg">
@@ -328,6 +337,10 @@
             <i class="fa-solid fa-chevron-down text-slate-400 text-[9px]"></i>
           </div>
         </div>
+      </div>
+
+      <!-- Beratungs-Warteschlangen-Leiste -->
+      <div id="consultationQueueBar" class="hidden shrink-0 transition-all duration-200">
       </div>
 
       <!-- Ansicht 1: Tabelle -->
@@ -411,6 +424,36 @@
     </div>
   </div>
 
+  <!-- Beratungs-Warteschlange Popover (Optionen bei Klick auf Nummern-Badge) -->
+  <div id="queuePopover" class="fixed hidden z-50 bg-white border border-slate-200 rounded-xl shadow-2xl p-2 min-w-[220px] flex flex-col gap-1.5 transition-all transform origin-top-left">
+    <div class="text-[10px] font-bold text-slate-500 px-1 py-0.5 border-b border-slate-100 uppercase tracking-wider flex justify-between items-center">
+      <span id="queuePopoverTitle" class="truncate max-w-[160px]">Beratung: #1</span>
+      <button onclick="closeQueuePopover()" class="text-slate-400 hover:text-slate-600 cursor-pointer"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="flex flex-col gap-1 text-xs pt-0.5">
+      <button onclick="queuePopoverCallActive()" class="w-full text-left px-2 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-900 flex items-center gap-2 font-semibold transition cursor-pointer">
+        <i class="fa-solid fa-bell text-emerald-600 text-xs"></i>
+        <span>Jetzt aufrufen / In Beratung</span>
+      </button>
+      <button onclick="queuePopoverFinish()" class="w-full text-left px-2 py-1.5 rounded-lg hover:bg-slate-100 text-slate-800 flex items-center gap-2 font-medium transition cursor-pointer">
+        <i class="fa-solid fa-check text-emerald-600 text-xs"></i>
+        <span>Beratung fertig (Erledigt)</span>
+      </button>
+      <div class="flex items-center justify-between px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg">
+        <span class="text-[11px] font-semibold text-slate-600">Nummer:</span>
+        <div class="flex items-center gap-1">
+          <button onclick="queuePopoverAdjustNum(-1)" class="w-5 h-5 flex items-center justify-center bg-white hover:bg-slate-200 rounded border border-slate-200 font-bold text-xs cursor-pointer">-</button>
+          <input id="queuePopoverNumInput" type="number" min="1" class="w-12 text-center font-bold text-xs bg-white border border-slate-200 rounded py-0.5 focus:outline-none focus:ring-1 focus:ring-amber-500" onchange="queuePopoverSetNum(this.value)">
+          <button onclick="queuePopoverAdjustNum(1)" class="w-5 h-5 flex items-center justify-center bg-white hover:bg-slate-200 rounded border border-slate-200 font-bold text-xs cursor-pointer">+</button>
+        </div>
+      </div>
+      <button onclick="queuePopoverRemove()" class="w-full text-left px-2 py-1.5 rounded-lg hover:bg-rose-50 text-rose-600 flex items-center gap-2 font-medium transition cursor-pointer">
+        <i class="fa-solid fa-user-minus text-rose-500 text-xs"></i>
+        <span>Aus Warteschlange entfernen</span>
+      </button>
+    </div>
+  </div>
+
   <!-- Toast Benachrichtigung mit Rückgängig-Button -->
   <div id="toast" class="fixed bottom-4 right-4 bg-slate-900 text-white px-3.5 py-2 rounded-xl shadow-lg text-xs font-medium transition-all duration-300 transform translate-y-20 opacity-0 z-50 flex items-center gap-2">
     <i id="toastIcon" class="fa-solid fa-circle-check text-emerald-400 text-xs"></i>
@@ -472,13 +515,32 @@
           </div>
         </div>
 
-        <div>
+        <!-- Beratungs-Warteschlange im Modal -->
+        <div class="p-2.5 bg-amber-50/70 border border-amber-200/80 rounded-xl flex flex-col gap-1.5">
+          <div class="flex items-center justify-between">
+            <label class="block text-xs font-semibold text-amber-900 flex items-center gap-1">
+              <i class="fa-solid fa-clipboard-list text-amber-600"></i> Beratungs-Warteschlange
+            </label>
+            <span id="editStudentQueueStatusBadge" class="text-[10px] font-semibold text-amber-800"></span>
+          </div>
+          <div class="flex items-center gap-1.5 flex-wrap">
+            <div class="flex items-center gap-1 bg-white border border-amber-200 rounded-lg px-1 py-0.5">
+              <button type="button" onclick="adjustEditModalQueueNumber(-1)" class="w-6 h-6 flex items-center justify-center bg-amber-50 hover:bg-amber-100 rounded text-amber-900 font-bold text-xs transition cursor-pointer">-</button>
+              <input type="number" id="editStudentQueueNumberInput" min="1" placeholder="Keine" class="w-16 px-1 py-0.5 text-center font-mono font-bold text-xs focus:outline-none bg-transparent">
+              <button type="button" onclick="adjustEditModalQueueNumber(1)" class="w-6 h-6 flex items-center justify-center bg-amber-50 hover:bg-amber-100 rounded text-amber-900 font-bold text-xs transition cursor-pointer">+</button>
+            </div>
+            <button type="button" onclick="assignEditModalNextQueueNumber()" class="px-2 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-semibold shadow-2xs transition cursor-pointer">Nächste Nr. (#)</button>
+            <button type="button" onclick="clearEditModalQueueNumber()" class="px-2 py-1 bg-white hover:bg-rose-50 text-rose-600 border border-rose-200 rounded-lg text-xs font-medium transition cursor-pointer">Aus Schlange entfernen</button>
+          </div>
+        </div>
+
+        <div class="teacher-only">
           <label class="block text-xs font-semibold text-slate-600 mb-1">Notiz / Förderbedarf</label>
           <textarea id="editStudentNoteInput" rows="3" placeholder="z. B. LRS-Förderung, Sitzplatz vorne..." class="w-full p-2.5 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-slate-50"></textarea>
         </div>
       </div>
       <div class="flex justify-between items-center pt-2 border-t border-slate-100">
-        <button onclick="deleteStudentFromEditModal()" class="text-xs text-rose-500 hover:underline flex items-center gap-1 cursor-pointer">
+        <button onclick="deleteStudentFromEditModal()" class="teacher-only text-xs text-rose-500 hover:underline flex items-center gap-1 cursor-pointer">
           <i class="fa-solid fa-trash text-[10px]"></i> Kind löschen
         </button>
         <div class="flex gap-1.5">
@@ -510,6 +572,27 @@
           <button onclick="closeModal('addStudentModal')" class="px-3 py-1 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer">Abbrechen</button>
           <button onclick="saveBatchStudents()" class="px-3.5 py-1 rounded-lg bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800 cursor-pointer">Kinder speichern</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Kind zur Beratungs-Warteschlange hinzufügen -->
+  <div id="addStudentToQueueModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-40 hidden">
+    <div class="bg-white w-full max-w-md rounded-2xl p-4 shadow-2xl border border-slate-100 flex flex-col gap-2.5 max-h-[85vh]">
+      <div class="flex justify-between items-center border-b border-slate-100 pb-2">
+        <div>
+          <h3 class="font-bold text-slate-900 text-sm flex items-center gap-1.5">
+            <i class="fa-solid fa-clipboard-list text-amber-600"></i> Kind zur Beratung einreihen
+          </h3>
+          <p class="text-[10px] text-slate-500">Klicke auf ein Kind, um es mit der nächsten freien Wartenummer aufzurufen.</p>
+        </div>
+        <button onclick="closeModal('addStudentToQueueModal')" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-base"></i></button>
+      </div>
+      <div id="queueAvailableStudentsList" class="flex flex-col gap-1 overflow-y-auto max-h-[55vh] pr-1">
+        <!-- Dynamisch befüllt -->
+      </div>
+      <div class="flex justify-end pt-1 border-t border-slate-100">
+        <button onclick="closeModal('addStudentToQueueModal')" class="px-3 py-1 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer">Schließen</button>
       </div>
     </div>
   </div>
@@ -1351,12 +1434,22 @@
         appData.statuses.push(...DEFAULT_GRADE_STATUSES);
       }
 
+      if (appData.uiState.queueSoundMuted === undefined) {
+        appData.uiState.queueSoundMuted = false;
+      }
+      if (appData.uiState.queueBarCollapsed === undefined) {
+        appData.uiState.queueBarCollapsed = false;
+      }
+
       appData.courses.forEach(c => {
         c.students.forEach((s, idx) => {
           if (!s.level) s.level = 'aufsteiger';
           if (s.absenceCount === undefined) s.absenceCount = 0;
           if (s.note === undefined) s.note = '';
           if (s.customOrder === undefined) s.customOrder = idx;
+          if (s.queueNumber === undefined) s.queueNumber = null;
+          if (s.queueStatus === undefined) s.queueStatus = null;
+          if (s.queueTimestamp === undefined) s.queueTimestamp = null;
         });
       });
 
@@ -1389,6 +1482,10 @@
         if (colPop && !colPop.classList.contains('hidden') && !colPop.contains(e.target) && !e.target.closest('.col-action-btn')) {
           closeColumnActionPopover();
         }
+        const qPop = document.getElementById('queuePopover');
+        if (qPop && !qPop.classList.contains('hidden') && !qPop.contains(e.target) && !e.target.closest('.queue-badge-btn')) {
+          closeQueuePopover();
+        }
       });
     });
 
@@ -1405,6 +1502,7 @@
       renderCourseTabs();
       updateCompactHeaderInfo();
       updateNotesButtonLabel();
+      renderQueueBar();
       renderTable();
       renderCardViewSelect();
       renderCardView();
@@ -2583,6 +2681,7 @@
 
         closeStatusPopover();
         closeColumnActionPopover();
+        closeQueuePopover();
         document.querySelectorAll('.fixed.inset-0:not(.hidden)').forEach(m => m.classList.add('hidden'));
       }
     });
@@ -2696,7 +2795,7 @@
       const taskColWidth = calculateDynamicTaskColWidth(course.tasks);
 
       const thStudent = document.createElement('th');
-      thStudent.className = 'py-1 px-1.5 sticky-col bg-slate-50 border-r border-slate-200 w-[156px] min-w-[156px] text-slate-700 select-none';
+      thStudent.className = 'py-1 px-1.5 sticky-col bg-slate-50 border-r border-slate-200 w-[176px] min-w-[176px] text-slate-700 select-none';
       thStudent.innerHTML = `
         <div class="flex items-center justify-between">
           <span class="font-bold text-[11px]">Schüler (${course.students.length})</span>
@@ -2786,8 +2885,8 @@
 
         const tdName = document.createElement('td');
         tdName.className = 'py-0.5 px-1 sticky-col bg-white border-r border-slate-200 font-medium text-slate-800';
-        tdName.style.width = '156px';
-        tdName.style.minWidth = '156px';
+        tdName.style.width = '176px';
+        tdName.style.minWidth = '176px';
         
         tdName.innerHTML = `
           <div class="flex items-center justify-between gap-1 leading-none">
@@ -2799,15 +2898,34 @@
                 <span>${currentLevel.icon}</span>
               </button>
 
-              <span class="truncate cursor-pointer hover:text-emerald-600 transition text-[11px] leading-tight" 
-                    onclick="${appData.isStudentMode ? '' : `openEditStudentModal('${student.id}')`}"
+              <span class="truncate cursor-pointer hover:text-emerald-600 transition text-[11px] leading-tight font-medium" 
+                    onclick="openEditStudentModal('${student.id}')"
                     title="${escapeHTML(displayName)} (Klicken zum Bearbeiten)">
                 ${escapeHTML(displayName)}
               </span>
+
+              ${student.queueNumber ? `
+                <button onclick="openQueuePopover(event, '${student.id}')" 
+                        class="queue-badge-btn shrink-0 px-1.5 py-0.2 rounded-full text-[9px] font-extrabold flex items-center gap-0.5 cursor-pointer shadow-2xs transition hover:scale-105 ${
+                          student.queueStatus === 'active' 
+                            ? 'bg-emerald-600 text-white ring-2 ring-emerald-400 animate-pulse' 
+                            : 'bg-amber-500 hover:bg-amber-600 text-white'
+                        }"
+                        title="Beratung: #${student.queueNumber} (${student.queueStatus === 'active' ? 'Jetzt in Beratung' : 'Wartet'} - Klicken für Optionen)">
+                  ${student.queueStatus === 'active' ? '<i class="fa-solid fa-bell text-[7px]"></i>' : ''}
+                  <span>#${student.queueNumber}</span>
+                </button>
+              ` : `
+                <button onclick="quickAddStudentToQueue('${student.id}')"
+                        class="shrink-0 opacity-40 hover:opacity-100 hover:bg-amber-100 text-amber-700 px-1 py-0 rounded text-[9px] font-semibold transition cursor-pointer"
+                        title="Nummer für Beratung vergeben">
+                  <i class="fa-solid fa-plus text-[7px]"></i>#
+                </button>
+              `}
             </div>
 
-            <div class="teacher-only flex items-center gap-0.5 shrink-0">
-              <div class="student-drag-handle touch-none flex items-center justify-center w-4 h-4 rounded text-slate-400 hover:text-emerald-600 hover:bg-slate-100 active:bg-emerald-100 active:text-emerald-700 cursor-grab active:cursor-grabbing transition select-none mr-0.5"
+            <div class="flex items-center gap-0.5 shrink-0">
+              <div class="teacher-only student-drag-handle touch-none flex items-center justify-center w-4 h-4 rounded text-slate-400 hover:text-emerald-600 hover:bg-slate-100 active:bg-emerald-100 active:text-emerald-700 cursor-grab active:cursor-grabbing transition select-none mr-0.5"
                    style="touch-action: none;"
                    data-student-id="${student.id}"
                    title="Zeile verschieben (3 Striche gedrückt halten und ziehen)">
@@ -2816,13 +2934,13 @@
 
               <button onclick="incrementAbsence('${student.id}')" oncontextmenu="event.preventDefault(); decrementAbsence('${student.id}')"
                       class="touch-btn px-1 py-0 h-4 rounded text-[9px] font-semibold border transition flex items-center gap-0.5 cursor-pointer ${student.absenceCount > 0 ? 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100' : 'bg-slate-50 text-slate-400 border-slate-200 hover:text-slate-700'}"
-                      title="Fehltage: ${student.absenceCount} (Rechtsklick: -1)">
+                      title="Fehltage: ${student.absenceCount} (Klicken: +1, Rechtsklick: -1)">
                 <i class="fa-solid fa-notes-medical text-[7px]"></i>
                 <span>${student.absenceCount}</span>
               </button>
 
               <button onclick="openNoteModal('${student.id}')" 
-                      class="touch-btn p-0.5 rounded text-[9px] transition cursor-pointer ${student.note ? 'text-amber-500 bg-amber-50 hover:bg-amber-100' : 'text-slate-400 hover:text-slate-600'}"
+                      class="teacher-only touch-btn p-0.5 rounded text-[9px] transition cursor-pointer ${student.note ? 'text-amber-500 bg-amber-50 hover:bg-amber-100' : 'text-slate-400 hover:text-slate-600'}"
                       title="${student.note ? `Notiz: ${escapeHTML(student.note)}` : 'Notiz verfassen'}">
                 <i class="fa-solid fa-comment-dots"></i>
               </button>
@@ -3184,6 +3302,21 @@
         noteInput.value = student.note || '';
       }
 
+      const queueInput = document.getElementById('editStudentQueueNumberInput');
+      const queueBadge = document.getElementById('editStudentQueueStatusBadge');
+      if (queueInput) {
+        queueInput.value = student.queueNumber || '';
+      }
+      if (queueBadge) {
+        if (student.queueNumber) {
+          queueBadge.textContent = student.queueStatus === 'active' ? `Aufgerufen (#${student.queueNumber})` : `Wartend (#${student.queueNumber})`;
+          queueBadge.className = student.queueStatus === 'active' ? 'text-[10px] font-bold text-emerald-700' : 'text-[10px] font-bold text-amber-800';
+        } else {
+          queueBadge.textContent = 'Nicht in Warteschlange';
+          queueBadge.className = 'text-[10px] text-slate-400';
+        }
+      }
+
       openModal('editStudentModal');
       setTimeout(() => document.getElementById('editStudentFirstNameInput').focus(), 50);
     }
@@ -3196,6 +3329,26 @@
       input.value = val;
     }
 
+    function adjustEditModalQueueNumber(delta) {
+      const input = document.getElementById('editStudentQueueNumberInput');
+      if (!input) return;
+      let val = parseInt(input.value, 10) || 0;
+      val = Math.max(0, val + delta);
+      input.value = val > 0 ? val : '';
+    }
+
+    function assignEditModalNextQueueNumber() {
+      const course = getActiveCourse();
+      const nextNum = getNextQueueNumber(course);
+      const input = document.getElementById('editStudentQueueNumberInput');
+      if (input) input.value = nextNum;
+    }
+
+    function clearEditModalQueueNumber() {
+      const input = document.getElementById('editStudentQueueNumberInput');
+      if (input) input.value = '';
+    }
+
     function applyEditStudentName() {
       const course = getActiveCourse();
       if (!course || !currentEditStudentId) return;
@@ -3206,6 +3359,9 @@
       const absences = absInput ? Math.max(0, parseInt(absInput.value, 10) || 0) : 0;
       const noteInput = document.getElementById('editStudentNoteInput');
       const note = noteInput ? noteInput.value.trim() : '';
+
+      const qInput = document.getElementById('editStudentQueueNumberInput');
+      const queueVal = qInput && qInput.value ? Math.max(1, parseInt(qInput.value, 10) || 0) : null;
 
       if (!first && !last) return;
 
@@ -3227,6 +3383,17 @@
 
         // Set note for active student
         student.note = note;
+
+        // Set queue number for active student
+        if (queueVal) {
+          student.queueNumber = queueVal;
+          if (!student.queueStatus) student.queueStatus = 'waiting';
+          if (!student.queueTimestamp) student.queueTimestamp = Date.now();
+        } else {
+          student.queueNumber = null;
+          student.queueStatus = null;
+          student.queueTimestamp = null;
+        }
 
         saveToDB();
         renderAll();
@@ -3284,6 +3451,491 @@
         renderTable();
         if (currentView === 'card') renderCardView();
       }
+    }
+
+    // ==========================================
+    // BERATUNGS-WARTESCHLANGE (CONSULTATION QUEUE)
+    // ==========================================
+
+    function playQueueChime() {
+      if (appData && appData.uiState && appData.uiState.queueSoundMuted) return;
+      try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return;
+        const ctx = new AudioContext();
+        if (ctx.state === 'suspended') ctx.resume();
+        const now = ctx.currentTime;
+        // Zweiklang Gong (E5 -> A5)
+        const osc1 = ctx.createOscillator();
+        const gain1 = ctx.createGain();
+        osc1.type = 'sine';
+        osc1.frequency.setValueAtTime(659.25, now);
+        gain1.gain.setValueAtTime(0, now);
+        gain1.gain.linearRampToValueAtTime(0.20, now + 0.04);
+        gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+        osc1.connect(gain1);
+        gain1.connect(ctx.destination);
+        osc1.start(now);
+        osc1.stop(now + 0.6);
+
+        const osc2 = ctx.createOscillator();
+        const gain2 = ctx.createGain();
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(880, now + 0.22);
+        gain2.gain.setValueAtTime(0, now + 0.22);
+        gain2.gain.linearRampToValueAtTime(0.24, now + 0.26);
+        gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.95);
+        osc2.connect(gain2);
+        gain2.connect(ctx.destination);
+        osc2.start(now + 0.22);
+        osc2.stop(now + 0.95);
+      } catch (e) {
+        console.warn('Audio chime nicht möglich:', e);
+      }
+    }
+
+    function getNextQueueNumber(course) {
+      if (!course || !course.students) return 1;
+      const numbers = course.students
+        .map(s => s.queueNumber)
+        .filter(n => typeof n === 'number' && n > 0);
+      if (numbers.length === 0) return 1;
+      return Math.max(...numbers) + 1;
+    }
+
+    function quickAddStudentToQueue(studentId) {
+      const course = getActiveCourse();
+      if (!course) return;
+      const student = course.students.find(s => s.id === studentId);
+      if (!student) return;
+
+      pushUndoState(`${student.name} in Warteschlange eingereiht`);
+      const nextNum = getNextQueueNumber(course);
+      student.queueNumber = nextNum;
+      student.queueStatus = 'waiting';
+      student.queueTimestamp = Date.now();
+
+      saveToDB();
+      renderQueueBar();
+      renderTable();
+      showToast(`${formatStudentDisplayName(student)} ist #${nextNum} in der Warteschlange`);
+    }
+
+    function removeStudentFromQueue(studentId) {
+      const course = getActiveCourse();
+      if (!course) return;
+      const student = course.students.find(s => s.id === studentId);
+      if (!student) return;
+
+      pushUndoState(`${student.name} aus Warteschlange entfernt`);
+      student.queueNumber = null;
+      student.queueStatus = null;
+      student.queueTimestamp = null;
+
+      saveToDB();
+      renderQueueBar();
+      renderTable();
+      showToast(`${formatStudentDisplayName(student)} aus Warteschlange entfernt`);
+    }
+
+    function callStudent(studentId) {
+      const course = getActiveCourse();
+      if (!course) return;
+      const target = course.students.find(s => s.id === studentId);
+      if (!target) return;
+
+      pushUndoState(`${target.name} aufgerufen`);
+      course.students.forEach(st => {
+        if (st.queueStatus === 'active') st.queueStatus = 'waiting';
+      });
+
+      target.queueStatus = 'active';
+      playQueueChime();
+      showToast(`🔔 Aufgerufen: #${target.queueNumber} ${formatStudentDisplayName(target)}!`);
+
+      saveToDB();
+      renderQueueBar();
+      renderTable();
+      closeQueuePopover();
+    }
+
+    function callNextInQueue() {
+      const course = getActiveCourse();
+      if (!course || !course.students) return;
+
+      const queueStudents = course.students
+        .filter(s => s.queueNumber !== null && s.queueNumber !== undefined && s.queueNumber > 0)
+        .sort((a, b) => (a.queueNumber || 0) - (b.queueNumber || 0));
+
+      if (queueStudents.length === 0) {
+        showToast('Keine Kinder in der Warteschlange.');
+        return;
+      }
+
+      const currentActive = queueStudents.find(s => s.queueStatus === 'active');
+      const waitingStudents = queueStudents.filter(s => s.queueStatus !== 'active');
+
+      if (waitingStudents.length === 0 && currentActive) {
+        playQueueChime();
+        showToast(`🔔 ${formatStudentDisplayName(currentActive)} (#${currentActive.queueNumber}) ist aufgerufen.`);
+        return;
+      }
+
+      pushUndoState('Nächstes Kind aufgerufen');
+
+      if (currentActive) {
+        currentActive.queueNumber = null;
+        currentActive.queueStatus = null;
+        currentActive.queueTimestamp = null;
+      }
+
+      const nextStudent = waitingStudents[0];
+      if (nextStudent) {
+        nextStudent.queueStatus = 'active';
+        playQueueChime();
+        showToast(`🔔 Aufgerufen: #${nextStudent.queueNumber} ${formatStudentDisplayName(nextStudent)}!`);
+      }
+
+      saveToDB();
+      renderQueueBar();
+      renderTable();
+    }
+
+    function finishConsultation(studentId) {
+      const course = getActiveCourse();
+      if (!course) return;
+      const s = course.students.find(st => st.id === studentId);
+      if (!s) return;
+
+      pushUndoState(`Beratung für ${s.name} beendet`);
+      s.queueNumber = null;
+      s.queueStatus = null;
+      s.queueTimestamp = null;
+
+      const remaining = course.students
+        .filter(st => st.queueNumber !== null && st.queueNumber > 0 && st.queueStatus !== 'active')
+        .sort((a, b) => (a.queueNumber || 0) - (b.queueNumber || 0));
+
+      if (remaining.length > 0) {
+        const nextS = remaining[0];
+        nextS.queueStatus = 'active';
+        playQueueChime();
+        showToast(`Fertig! Als Nächstes aufgerufen: #${nextS.queueNumber} ${formatStudentDisplayName(nextS)}`);
+      } else {
+        showToast(`Beratung für ${formatStudentDisplayName(s)} beendet.`);
+      }
+
+      saveToDB();
+      renderQueueBar();
+      renderTable();
+    }
+
+    function renumberCourseQueue() {
+      const course = getActiveCourse();
+      if (!course || !course.students) return;
+
+      const queueStudents = course.students
+        .filter(s => s.queueNumber !== null && s.queueNumber !== undefined && s.queueNumber > 0)
+        .sort((a, b) => (a.queueNumber || 0) - (b.queueNumber || 0));
+
+      if (queueStudents.length === 0) return;
+
+      pushUndoState('Warteschlange neu nummeriert');
+      queueStudents.forEach((s, idx) => {
+        s.queueNumber = idx + 1;
+      });
+
+      saveToDB();
+      renderQueueBar();
+      renderTable();
+      showToast('Warteschlange fortlaufend neu nummeriert (1, 2, 3...)');
+    }
+
+    function clearCourseQueuePrompt() {
+      const course = getActiveCourse();
+      if (!course) return;
+      const count = course.students.filter(s => s.queueNumber > 0).length;
+      if (count === 0) return;
+
+      showCustomConfirm(
+        'Warteschlange leeren',
+        `Möchtest du alle ${count} Kinder aus der Beratungs-Warteschlange entfernen?`,
+        () => {
+          pushUndoState('Warteschlange geleert');
+          course.students.forEach(s => {
+            s.queueNumber = null;
+            s.queueStatus = null;
+            s.queueTimestamp = null;
+          });
+          saveToDB();
+          renderQueueBar();
+          renderTable();
+          showToast('Warteschlange geleert');
+        }
+      );
+    }
+
+    function toggleQueueBar() {
+      if (!appData.uiState) appData.uiState = {};
+      appData.uiState.queueBarCollapsed = !appData.uiState.queueBarCollapsed;
+      saveToDB();
+      renderQueueBar();
+    }
+
+    function toggleQueueSound() {
+      if (!appData.uiState) appData.uiState = {};
+      appData.uiState.queueSoundMuted = !appData.uiState.queueSoundMuted;
+      saveToDB();
+      renderQueueBar();
+      showToast(appData.uiState.queueSoundMuted ? 'Gong-Ton stummgeschaltet' : 'Gong-Ton aktiviert');
+    }
+
+    function renderQueueBar() {
+      const container = document.getElementById('consultationQueueBar');
+      const badgeCount = document.getElementById('queueBarBadgeCount');
+      if (!container) return;
+
+      const course = getActiveCourse();
+      if (!course || !course.students) {
+        container.classList.add('hidden');
+        if (badgeCount) badgeCount.classList.add('hidden');
+        return;
+      }
+
+      const queueStudents = course.students
+        .filter(s => s.queueNumber !== null && s.queueNumber !== undefined && s.queueNumber > 0)
+        .sort((a, b) => (a.queueNumber || 0) - (b.queueNumber || 0));
+
+      if (badgeCount) {
+        if (queueStudents.length > 0) {
+          badgeCount.textContent = queueStudents.length;
+          badgeCount.classList.remove('hidden');
+        } else {
+          badgeCount.classList.add('hidden');
+        }
+      }
+
+      if (appData.uiState && appData.uiState.queueBarCollapsed) {
+        container.classList.add('hidden');
+        return;
+      }
+
+      if (queueStudents.length === 0) {
+        container.classList.add('hidden');
+        return;
+      }
+
+      container.classList.remove('hidden');
+
+      const activeStudent = queueStudents.find(s => s.queueStatus === 'active') || null;
+      const waitingStudents = queueStudents.filter(s => s.queueStatus !== 'active');
+      const isMuted = !!(appData.uiState && appData.uiState.queueSoundMuted);
+
+      container.innerHTML = `
+        <div class="bg-gradient-to-r from-amber-500/10 via-amber-400/5 to-emerald-500/10 border border-amber-300/80 rounded-xl px-3 py-2 flex flex-wrap items-center justify-between gap-2 shadow-xs transition-all">
+          <div class="flex items-center gap-2 flex-wrap min-w-0 flex-1">
+            <div class="flex items-center gap-1.5 shrink-0">
+              <span class="w-6 h-6 rounded-lg bg-amber-500 text-white flex items-center justify-center text-xs font-bold shadow-2xs">
+                <i class="fa-solid fa-clipboard-list text-[11px]"></i>
+              </span>
+              <div class="flex flex-col">
+                <span class="font-extrabold text-xs text-amber-950 leading-tight">Beratung & Hilfe</span>
+                <span class="text-[9px] font-medium text-amber-700">${queueStudents.length} ${queueStudents.length === 1 ? 'Kind' : 'Kinder'} in Warteschlange</span>
+              </div>
+            </div>
+
+            <div class="h-6 w-px bg-amber-200/80 hidden sm:block shrink-0"></div>
+
+            ${activeStudent ? `
+              <div class="flex items-center gap-2 bg-emerald-600 text-white px-2.5 py-1 rounded-xl shadow-xs shrink-0 animate-pulse-once">
+                <i class="fa-solid fa-bell text-[11px] animate-bounce"></i>
+                <span class="font-bold text-xs">#${activeStudent.queueNumber} ${escapeHTML(formatStudentDisplayName(activeStudent))}</span>
+                <span class="text-[9px] bg-emerald-700 text-emerald-100 px-1.5 py-0.2 rounded-md font-semibold">In Beratung</span>
+                <button onclick="finishConsultation('${activeStudent.id}')" class="ml-1 px-2 py-0.5 bg-white text-emerald-800 hover:bg-emerald-50 rounded-lg text-xs font-bold transition shadow-2xs cursor-pointer" title="Beratung beenden & Nächste(n) aufrufen">
+                  <i class="fa-solid fa-check text-[10px] mr-0.5"></i> Fertig
+                </button>
+              </div>
+            ` : `
+              <button onclick="callNextInQueue()" class="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white px-2.5 py-1 rounded-xl shadow-xs text-xs font-bold transition cursor-pointer shrink-0" title="Erstes wartendes Kind aufrufen">
+                <i class="fa-solid fa-bullhorn text-[11px]"></i>
+                <span>Nächste(r) aufrufen</span>
+              </button>
+            `}
+
+            <div class="flex items-center gap-1.5 overflow-x-auto py-0.5 max-w-full">
+              ${waitingStudents.length > 0 ? `
+                <span class="text-[10px] font-bold text-amber-800 uppercase tracking-wider shrink-0 flex items-center gap-0.5 ml-1">
+                  <i class="fa-solid fa-clock text-amber-600 text-[9px]"></i> Wartend:
+                </span>
+                ${waitingStudents.map(s => `
+                  <button onclick="openQueuePopover(event, '${s.id}')" class="queue-badge-btn shrink-0 px-2 py-0.5 rounded-lg bg-white hover:bg-amber-50 border border-amber-200 hover:border-amber-400 text-amber-950 text-xs font-semibold flex items-center gap-1 transition shadow-2xs cursor-pointer" title="Klicken für Optionen">
+                    <span class="font-extrabold bg-amber-500 text-white px-1.5 py-0.2 rounded-full text-[9px]">#${s.queueNumber}</span>
+                    <span class="truncate max-w-[100px] sm:max-w-[130px]">${escapeHTML(formatStudentDisplayName(s))}</span>
+                  </button>
+                `).join('')}
+              ` : `
+                <span class="text-[10px] text-emerald-700 font-medium ml-1">Keine weiteren Kinder warten.</span>
+              `}
+            </div>
+          </div>
+
+          <div class="flex items-center gap-1 shrink-0 ml-auto">
+            <button onclick="callNextInQueue()" class="px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center gap-1 transition shadow-2xs cursor-pointer" title="Nächste(n) aufrufen">
+              <i class="fa-solid fa-forward-step text-[10px]"></i>
+              <span class="hidden md:inline">Nächster</span>
+            </button>
+            <button onclick="openAddStudentToQueueModal()" class="px-2 py-1 rounded-lg bg-white border border-amber-200 hover:border-amber-300 text-amber-900 text-xs font-semibold flex items-center gap-1 transition shadow-2xs cursor-pointer" title="Kind zur Warteschlange hinzufügen">
+              <i class="fa-solid fa-plus text-[10px]"></i>
+              <span class="hidden md:inline">Kind +</span>
+            </button>
+            <button onclick="renumberCourseQueue()" class="px-1.5 py-1 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs transition cursor-pointer" title="Lückenlos neu nummerieren (1, 2, 3...)">
+              <i class="fa-solid fa-arrow-down-1-9 text-[11px]"></i>
+            </button>
+            <button onclick="toggleQueueSound()" class="px-1.5 py-1 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs transition cursor-pointer" title="${isMuted ? 'Gong-Ton ist stummgeschaltet (Klicken zum Aktivieren)' : 'Gong-Ton ist aktiv (Klicken zum Stummschalten)'}">
+              <i class="fa-solid ${isMuted ? 'fa-volume-xmark text-slate-400' : 'fa-volume-high text-emerald-600'} text-[11px]"></i>
+            </button>
+            <button onclick="clearCourseQueuePrompt()" class="px-1.5 py-1 rounded-lg bg-white border border-slate-200 hover:bg-rose-50 hover:text-rose-600 text-slate-400 text-xs transition cursor-pointer" title="Ganze Warteschlange leeren">
+              <i class="fa-solid fa-trash text-[10px]"></i>
+            </button>
+            <button onclick="toggleQueueBar()" class="px-1.5 py-1 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 text-slate-400 hover:text-slate-600 text-xs transition cursor-pointer" title="Warteschlange minimieren">
+              <i class="fa-solid fa-chevron-up text-[10px]"></i>
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    let currentQueuePopoverStudentId = null;
+
+    function openQueuePopover(e, studentId) {
+      e.stopPropagation();
+      currentQueuePopoverStudentId = studentId;
+      const course = getActiveCourse();
+      const student = course ? course.students.find(s => s.id === studentId) : null;
+      if (!student) return;
+
+      const titleEl = document.getElementById('queuePopoverTitle');
+      if (titleEl) {
+        titleEl.textContent = `#${student.queueNumber || '?'} ${formatStudentDisplayName(student)}`;
+      }
+
+      const numInput = document.getElementById('queuePopoverNumInput');
+      if (numInput) {
+        numInput.value = student.queueNumber || 1;
+      }
+
+      const popover = document.getElementById('queuePopover');
+      if (!popover) return;
+
+      const rect = e.currentTarget.getBoundingClientRect();
+      const topPos = Math.min(window.innerHeight - 240, rect.bottom + 4);
+      const leftPos = Math.min(window.innerWidth - 240, Math.max(8, rect.left - 40));
+
+      popover.style.top = `${topPos}px`;
+      popover.style.left = `${leftPos}px`;
+      popover.classList.remove('hidden');
+    }
+
+    function closeQueuePopover() {
+      const popover = document.getElementById('queuePopover');
+      if (popover) popover.classList.add('hidden');
+      currentQueuePopoverStudentId = null;
+    }
+
+    function queuePopoverCallActive() {
+      if (!currentQueuePopoverStudentId) return;
+      callStudent(currentQueuePopoverStudentId);
+    }
+
+    function queuePopoverFinish() {
+      if (!currentQueuePopoverStudentId) return;
+      const id = currentQueuePopoverStudentId;
+      closeQueuePopover();
+      finishConsultation(id);
+    }
+
+    function queuePopoverAdjustNum(delta) {
+      if (!currentQueuePopoverStudentId) return;
+      const course = getActiveCourse();
+      const student = course ? course.students.find(s => s.id === currentQueuePopoverStudentId) : null;
+      if (!student) return;
+
+      let val = (student.queueNumber || 1) + delta;
+      val = Math.max(1, val);
+      student.queueNumber = val;
+      const numInput = document.getElementById('queuePopoverNumInput');
+      if (numInput) numInput.value = val;
+
+      saveToDB();
+      renderQueueBar();
+      renderTable();
+    }
+
+    function queuePopoverSetNum(val) {
+      if (!currentQueuePopoverStudentId) return;
+      const course = getActiveCourse();
+      const student = course ? course.students.find(s => s.id === currentQueuePopoverStudentId) : null;
+      if (!student) return;
+
+      let num = parseInt(val, 10);
+      if (isNaN(num) || num < 1) num = 1;
+      student.queueNumber = num;
+
+      saveToDB();
+      renderQueueBar();
+      renderTable();
+    }
+
+    function queuePopoverRemove() {
+      if (!currentQueuePopoverStudentId) return;
+      const course = getActiveCourse();
+      const student = course ? course.students.find(s => s.id === currentQueuePopoverStudentId) : null;
+      if (student) {
+        student.queueNumber = null;
+        student.queueStatus = null;
+        student.queueTimestamp = null;
+        saveToDB();
+        renderQueueBar();
+        renderTable();
+        showToast(`${formatStudentDisplayName(student)} aus Warteschlange entfernt`);
+      }
+      closeQueuePopover();
+    }
+
+    function openAddStudentToQueueModal() {
+      const course = getActiveCourse();
+      if (!course || !course.students) return;
+      const listEl = document.getElementById('queueAvailableStudentsList');
+      if (!listEl) return;
+
+      const available = getSortedStudents(course.students).filter(s => !s.queueNumber || s.queueNumber <= 0);
+      if (available.length === 0) {
+        listEl.innerHTML = `
+          <div class="text-center py-6 text-slate-400 text-xs">
+            Alle Kinder dieses Kurses sind bereits in der Warteschlange.
+          </div>
+        `;
+      } else {
+        listEl.innerHTML = available.map(s => {
+          const level = LEVEL_CONFIG[s.level || 'aufsteiger'] || LEVEL_CONFIG.aufsteiger;
+          return `
+            <button onclick="quickAddStudentToQueue('${s.id}'); closeModal('addStudentToQueueModal');"
+                    class="w-full flex items-center justify-between p-2 rounded-xl bg-slate-50 hover:bg-amber-50 border border-slate-200/80 hover:border-amber-300 text-left transition cursor-pointer">
+              <div class="flex items-center gap-2">
+                <span class="w-5 h-5 rounded flex items-center justify-center text-[10px]" style="background-color: ${level.bg}; color: ${level.color}">
+                  ${level.icon}
+                </span>
+                <span class="font-semibold text-xs text-slate-800">${escapeHTML(formatStudentDisplayName(s))}</span>
+              </div>
+              <span class="text-xs font-bold text-amber-700 bg-amber-100/80 px-2 py-0.5 rounded-md flex items-center gap-1">
+                <i class="fa-solid fa-plus text-[9px]"></i> Einreihen
+              </span>
+            </button>
+          `;
+        }).join('');
+      }
+
+      openModal('addStudentToQueueModal');
     }
 
     function renderCardViewSelect() {
@@ -3359,7 +4011,7 @@
                 </div>
               </div>
 
-              <div class="teacher-only flex items-center gap-1.5 flex-wrap">
+              <div class="flex items-center gap-1.5 flex-wrap">
                 <div class="flex items-center bg-slate-50 border border-slate-200 rounded-lg px-1.5 py-0.5 gap-1 text-[11px]">
                   <span class="text-slate-500 font-medium text-[10px]"><i class="fa-solid fa-notes-medical text-rose-500 mr-0.5"></i>Fehltage:</span>
                   <button onclick="decrementAbsence('${student.id}')" class="w-4 h-4 flex items-center justify-center bg-white hover:bg-slate-100 rounded border border-slate-200 font-bold text-slate-600 text-[9px] transition cursor-pointer">-</button>
@@ -3546,11 +4198,9 @@
                 </button>
               </div>
               <div class="flex items-center gap-1 text-[10px] text-slate-500">
-                ${!appData.isStudentMode ? `
-                  <span class="font-semibold ${s.absenceCount > 0 ? 'text-rose-600' : 'text-slate-500'}">
-                    <i class="fa-solid fa-notes-medical mr-0.5"></i>${s.absenceCount || 0} Fehltage
-                  </span>
-                ` : ''}
+                <span class="font-semibold ${s.absenceCount > 0 ? 'text-rose-600' : 'text-slate-500'}">
+                  <i class="fa-solid fa-notes-medical mr-0.5"></i>${s.absenceCount || 0} Fehltage
+                </span>
               </div>
             </div>
 
