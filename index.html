@@ -85,6 +85,12 @@
     body.student-mode-active .teacher-only {
       display: none !important;
     }
+    body.student-mode-active .student-input-row .row-first-container {
+      grid-column: span 6 / span 6 !important;
+    }
+    body.student-mode-active .student-input-row .row-last-container {
+      grid-column: span 5 / span 5 !important;
+    }
     /* Touch-freundliche Schaltflächen ohne zwingendes Hover */
     .touch-btn {
       opacity: 0.7;
@@ -137,7 +143,7 @@
             <div class="flex items-center gap-1.5">
               <h1 class="font-bold text-slate-900 leading-tight text-xs sm:text-sm">Lernfortschritts-Tracker</h1>
               <button onclick="openModal('changelogModal')" class="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded-md bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border border-emerald-300 transition cursor-pointer flex items-center gap-0.5 shadow-2xs" title="Versionshinweise ansehen">
-                <span>v1.9.0</span>
+                <span>v1.10.0</span>
                 <i class="fa-solid fa-circle-info text-[8px] text-emerald-600"></i>
               </button>
               <span id="studentModeBadge" class="hidden text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.2 rounded-md bg-indigo-100 text-indigo-800 border border-indigo-200">
@@ -226,7 +232,7 @@
           <i class="fa-solid fa-graduation-cap text-emerald-600 shrink-0 text-xs"></i>
           <span class="font-bold text-slate-900 truncate text-xs" id="compactCourseTitle">Kurs</span>
           <button onclick="openModal('changelogModal')" class="text-[9px] font-mono font-bold px-1 py-0.2 rounded bg-emerald-100 text-emerald-800 border border-emerald-300 shrink-0" title="Changelog">
-            v1.9.0
+            v1.10.0
           </button>
         </div>
 
@@ -273,17 +279,48 @@
     <!-- Hauptarbeitsbereich -->
     <main class="flex-1 w-full p-2 sm:p-3 flex flex-col gap-2 min-h-0 overflow-hidden">
 
+      <!-- 5-Tage-Backup-Erinnerung (nur im Lehrkraft-Modus) -->
+      <div id="backupReminderBanner" class="teacher-only hidden shrink-0 transition-all duration-300">
+        <div class="bg-amber-50 border border-amber-300 rounded-xl p-2.5 sm:px-3 sm:py-2 flex flex-wrap items-center justify-between gap-2 shadow-xs">
+          <div class="flex items-center gap-2">
+            <div class="w-7 h-7 rounded-lg bg-amber-500 text-white flex items-center justify-center shrink-0">
+              <i class="fa-solid fa-cloud-arrow-down text-xs"></i>
+            </div>
+            <div>
+              <div class="flex items-center gap-1.5">
+                <span class="text-xs font-bold text-amber-950">Datensicherung empfohlen</span>
+                <span id="backupReminderDetailBadge" class="text-[10px] font-semibold px-1.5 py-0.2 rounded-full bg-amber-200/80 text-amber-900"></span>
+              </div>
+              <p id="backupReminderText" class="text-[11px] text-amber-800 leading-tight">
+                Regelmäßige Backups schützen vor unerwartetem Datenverlust im Browser.
+              </p>
+            </div>
+          </div>
+          <div class="flex items-center gap-1.5 ml-auto">
+            <button onclick="triggerBackupFromReminder()" class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg flex items-center gap-1 shadow-2xs transition cursor-pointer">
+              <i class="fa-solid fa-download text-[10px]"></i> Jetzt sichern
+            </button>
+            <button onclick="snoozeBackupReminder()" class="px-2 py-1 bg-white hover:bg-amber-100 text-amber-800 border border-amber-300 text-xs font-medium rounded-lg transition cursor-pointer" title="Für heute ausblenden">
+              Später
+            </button>
+            <button onclick="dismissBackupReminderForever()" class="text-amber-600 hover:text-amber-900 p-1 text-xs cursor-pointer" title="Schließen">
+              <i class="fa-solid fa-xmark"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+
       <!-- Aktionsleiste -->
       <div id="actionBarWrapper" class="shrink-0 transition-all duration-200">
         <div id="fullActionBar" class="bg-white px-2.5 py-1.5 rounded-xl border border-slate-200 shadow-2xs flex flex-wrap items-center justify-between gap-1.5 transition-all duration-200">
-          <div class="teacher-only flex items-center gap-1.5 flex-wrap">
-            <button onclick="openAddStudentModal()" class="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold flex items-center gap-1 transition cursor-pointer shadow-2xs">
+          <div class="flex items-center gap-1.5 flex-wrap">
+            <button onclick="openAddStudentModal()" class="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold flex items-center gap-1 transition cursor-pointer shadow-2xs" title="Neues Kind zur Klasse hinzufügen">
               <i class="fa-solid fa-user-plus text-[10px]"></i> Kind +
             </button>
-            <button onclick="openModal('addTaskModal')" class="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center gap-1 transition cursor-pointer shadow-2xs">
+            <button onclick="openModal('addTaskModal')" class="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center gap-1 transition cursor-pointer shadow-2xs" title="Neues Material anlegen">
               <i class="fa-solid fa-plus text-[10px]"></i> Material
             </button>
-            <button id="toggleNotesBtn" onclick="toggleAllNotes()" class="px-2.5 py-1 rounded-lg border border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-semibold flex items-center gap-1 transition cursor-pointer shadow-2xs" title="Alle Notizen ein-/ausblenden">
+            <button id="toggleNotesBtn" onclick="toggleAllNotes()" class="teacher-only px-2.5 py-1 rounded-lg border border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-semibold flex items-center gap-1 transition cursor-pointer shadow-2xs" title="Alle Notizen ein-/ausblenden">
               <i class="fa-solid fa-note-sticky text-amber-600 text-[10px]"></i>
               <span id="toggleNotesBtnText">Notizen einblenden</span>
             </button>
@@ -727,6 +764,18 @@
         <button onclick="closeModal('exportModal')" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-base"></i></button>
       </div>
 
+      <!-- Status der letzten Sicherung -->
+      <div class="bg-slate-50 border border-slate-200 rounded-xl p-2.5 flex items-center justify-between gap-2">
+        <div class="flex items-center gap-2">
+          <i class="fa-solid fa-clock-rotate-left text-slate-400 text-sm"></i>
+          <div>
+            <span class="block text-[11px] font-bold text-slate-700">Letzte Datensicherung</span>
+            <span id="exportModalLastBackupText" class="text-[11px] text-slate-500">Wird ermittelt...</span>
+          </div>
+        </div>
+        <span id="exportModalBackupBadge" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">-</span>
+      </div>
+
       <!-- Neu: Komplett-Sicherung aller Kurse als CSV -->
       <div class="flex flex-col gap-2">
         <span class="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Alle Kurse sichern</span>
@@ -789,10 +838,25 @@
       </div>
 
       <div class="overflow-y-auto pr-1 flex flex-col gap-3 text-xs">
-        <!-- Version 1.9.0 -->
+        <!-- Version 1.10.0 -->
         <div class="border-l-2 border-emerald-500 pl-2.5 flex flex-col gap-1">
           <div class="flex items-center justify-between">
-            <span class="font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200 text-[10px]">v1.9.0 (Aktuell)</span>
+            <span class="font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200 text-[10px]">v1.10.0 (Aktuell)</span>
+            <span class="text-slate-500 font-medium text-[10px]">22.09.2026</span>
+          </div>
+          <p class="font-semibold text-slate-800">5-Tage-Backup-Erinnerung, Smartboard-Bearbeitung & Beratungs-Warteschlange</p>
+          <ul class="list-disc list-inside text-slate-600 space-y-0.5 leading-relaxed text-[11px]">
+            <li><strong>Automatische 5-Tage-Backup-Erinnerung:</strong> Erinnert verlässlich alle 5 Tage an eine Datensicherung; mit 1-Klick-Komplettsicherung aller Kurse als CSV, transparenter Datumsanzeige im Export-Menü und 24h-Schlummerfunktion (im Smartboard-Modus vor der Klasse automatisch ausgeblendet).</li>
+            <li><strong>Erweiterte Smartboard-Bearbeitung:</strong> Material- und Aufgabennamen können jetzt auch direkt im Smartboard-Modus per Klick umbenannt werden. Zudem können neue Materialien angelegt und neue Kinder hinzugefügt werden (unter striktem Schutz privater Notizen).</li>
+            <li><strong>Beratungs-Warteschlange (Sprechstunde):</strong> Integriertes Aufruf-System mit Wartenummern (#1, #2...), sanftem Gong-Signal, lückenloser Neunummerierung und Direktaufruf am Smartboard oder per Klick neben dem Schülernamen.</li>
+            <li><strong>Schülerdaten am Smartboard anpassen:</strong> Namen und Fehlzeiten lassen sich auch im Smartboard-Modus schnell und unkompliziert korrigieren.</li>
+          </ul>
+        </div>
+
+        <!-- Version 1.9.0 -->
+        <div class="border-l-2 border-slate-300 pl-2.5 flex flex-col gap-1">
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-slate-700 bg-slate-100 px-1.5 py-0.2 rounded text-[10px]">v1.9.0</span>
             <span class="text-slate-500 font-medium text-[10px]">07.09.2026</span>
           </div>
           <p class="font-semibold text-slate-800">Pinch-to-Zoom (iPad) & Drag & Drop Zeilenverschiebung</p>
@@ -1462,6 +1526,7 @@
       renderAll();
       initPinchToZoom();
       initStudentRowDragAndDrop();
+      updateBackupVisuals();
 
       window.addEventListener('resize', () => {
         if (appData) {
@@ -2393,6 +2458,7 @@
       applyStudentModeVisuals();
       saveToDB();
       renderAll();
+      updateBackupVisuals();
       showToast(appData.isStudentMode ? 'Smartboard-Modus aktiv' : 'Lehrkraft-Modus aktiv');
     }
 
@@ -2837,7 +2903,7 @@
                 </div>
               ` : ''}
 
-              <span class="truncate flex-1 text-center font-semibold text-[10px] cursor-pointer hover:text-emerald-700" onclick="${!appData.isStudentMode ? `openRenameTaskModal('${t.id}')` : ''}" title="${escapeHTML(t.title)} (Klicken zum Umbenennen)">${escapeHTML(t.title)}</span>
+              <span class="truncate flex-1 text-center font-semibold text-[10px] cursor-pointer hover:text-emerald-700" onclick="openRenameTaskModal('${t.id}')" title="${escapeHTML(t.title)} (Klicken zum Umbenennen)">${escapeHTML(t.title)}</span>
 
               ${!appData.isStudentMode ? `
                 <div class="flex items-center gap-0.5 shrink-0">
@@ -2854,6 +2920,13 @@
 
       const thSpacer = document.createElement('th');
       thSpacer.className = 'table-spacer-col w-auto p-0 border-none bg-slate-50';
+      thSpacer.innerHTML = `
+        <div class="px-1 py-0.5 flex items-center">
+          <button onclick="openModal('addTaskModal')" class="touch-btn h-5 px-1.5 rounded bg-slate-100 hover:bg-emerald-50 text-slate-500 hover:text-emerald-700 border border-dashed border-slate-300 hover:border-emerald-300 text-[9px] font-semibold flex items-center gap-1 transition cursor-pointer whitespace-nowrap" title="Neues Material hinzufügen">
+            <i class="fa-solid fa-plus text-[8px]"></i> Material
+          </button>
+        </div>
+      `;
       headerRow.appendChild(thSpacer);
 
       const sortedStudents = getSortedStudents(course.students);
@@ -4304,13 +4377,13 @@
       const row = document.createElement('div');
       row.className = 'student-input-row grid grid-cols-12 gap-1.5 p-1.5 bg-slate-50 rounded-xl border border-slate-200 items-center transition';
       row.innerHTML = `
-        <div class="col-span-4">
+        <div class="row-first-container col-span-4">
           <input type="text" placeholder="Vorname (z. B. Mia)" value="${escapeHTML(first)}" class="row-first-name w-full px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500">
         </div>
-        <div class="col-span-3">
+        <div class="row-last-container col-span-3">
           <input type="text" placeholder="Nachname (z. B. Schmidt)" value="${escapeHTML(last)}" class="row-last-name w-full px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500">
         </div>
-        <div class="col-span-4">
+        <div class="teacher-only col-span-4">
           <input type="text" placeholder="Notiz / Förderbedarf" value="${escapeHTML(note)}" class="row-note w-full px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500">
         </div>
         <div class="col-span-1 flex justify-center">
@@ -4341,9 +4414,12 @@
 
       pushUndoState('Kinder hinzugefügt');
       rows.forEach(r => {
-        const first = r.querySelector('.row-first-name').value.trim();
-        const last = r.querySelector('.row-last-name').value.trim();
-        const note = r.querySelector('.row-note').value.trim();
+        const firstInput = r.querySelector('.row-first-name');
+        const lastInput = r.querySelector('.row-last-name');
+        const noteInput = r.querySelector('.row-note');
+        const first = firstInput ? firstInput.value.trim() : '';
+        const last = lastInput ? lastInput.value.trim() : '';
+        const note = noteInput ? noteInput.value.trim() : '';
 
         if (first || last) {
           course.students.push({
@@ -4434,6 +4510,130 @@
       );
     }
 
+    // ==========================================
+    // 5-TAGE-BACKUP-ERINNERUNG & STATUS
+    // ==========================================
+    const BACKUP_INTERVAL_DAYS = 5;
+
+    function getBackupStatus() {
+      if (!appData || !appData.lastBackupDate) {
+        return {
+          hasBackup: false,
+          daysAgo: Infinity,
+          isDue: true,
+          label: 'Noch keine Sicherung erstellt',
+          formattedDate: '-'
+        };
+      }
+      const lastTime = new Date(appData.lastBackupDate).getTime();
+      if (isNaN(lastTime)) {
+        return {
+          hasBackup: false,
+          daysAgo: Infinity,
+          isDue: true,
+          label: 'Noch keine Sicherung erstellt',
+          formattedDate: '-'
+        };
+      }
+      const diffMs = Date.now() - lastTime;
+      const daysAgo = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+      const isDue = daysAgo >= BACKUP_INTERVAL_DAYS;
+      const d = new Date(lastTime);
+      const formattedDate = `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`;
+      let label = '';
+      if (daysAgo === 0) {
+        label = `Heute gesichert (${formattedDate})`;
+      } else if (daysAgo === 1) {
+        label = `Gestern gesichert (${formattedDate})`;
+      } else {
+        label = `Vor ${daysAgo} Tagen (${formattedDate})`;
+      }
+      return {
+        hasBackup: true,
+        daysAgo,
+        isDue,
+        label,
+        formattedDate
+      };
+    }
+
+    function checkBackupReminder() {
+      const banner = document.getElementById('backupReminderBanner');
+      if (!banner) return;
+
+      // Im Smartboard-Modus nicht anzeigen (Datenschutz & ungestörter Unterricht)
+      if (appData && appData.isStudentMode) {
+        banner.classList.add('hidden');
+        return;
+      }
+
+      // Prüfen, ob für diese Session weggedrückt
+      if (sessionStorage.getItem('backupReminderSnoozed') === 'true') {
+        banner.classList.add('hidden');
+        return;
+      }
+
+      const status = getBackupStatus();
+      if (status.isDue) {
+        const textEl = document.getElementById('backupReminderText');
+        const badgeEl = document.getElementById('backupReminderDetailBadge');
+        if (status.hasBackup) {
+          if (badgeEl) badgeEl.textContent = `Vor ${status.daysAgo} Tagen`;
+          if (textEl) textEl.textContent = `Deine letzte Datensicherung liegt ${status.daysAgo} Tage zurück (${status.formattedDate}). Bitte erstelle ein Backup, um Datenverlust zu vermeiden.`;
+        } else {
+          if (badgeEl) badgeEl.textContent = 'Fällig';
+          if (textEl) textEl.textContent = 'Bisher wurde noch kein Backup erstellt. Sichere deine Daten regelmäßig, um Datenverlust im Browser zu vermeiden.';
+        }
+        banner.classList.remove('hidden');
+      } else {
+        banner.classList.add('hidden');
+      }
+    }
+
+    function updateBackupVisuals() {
+      checkBackupReminder();
+      const status = getBackupStatus();
+      const modalText = document.getElementById('exportModalLastBackupText');
+      const modalBadge = document.getElementById('exportModalBackupBadge');
+      if (modalText && modalBadge) {
+        modalText.textContent = status.label;
+        if (!status.hasBackup || status.isDue) {
+          modalBadge.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300';
+          modalBadge.textContent = status.hasBackup ? 'Backup fällig' : 'Kein Backup';
+        } else {
+          modalBadge.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300';
+          modalBadge.textContent = 'Aktuell';
+        }
+      }
+    }
+
+    function triggerBackupFromReminder() {
+      exportAllCoursesCSV();
+      const banner = document.getElementById('backupReminderBanner');
+      if (banner) banner.classList.add('hidden');
+    }
+
+    function snoozeBackupReminder() {
+      sessionStorage.setItem('backupReminderSnoozed', 'true');
+      const banner = document.getElementById('backupReminderBanner');
+      if (banner) banner.classList.add('hidden');
+      showToast('Backup-Erinnerung für heute zurückgestellt');
+    }
+
+    function dismissBackupReminderForever() {
+      sessionStorage.setItem('backupReminderSnoozed', 'true');
+      const banner = document.getElementById('backupReminderBanner');
+      if (banner) banner.classList.add('hidden');
+    }
+
+    function recordBackupTimestamp() {
+      if (!appData) return;
+      appData.lastBackupDate = new Date().toISOString();
+      saveToDB(false);
+      sessionStorage.removeItem('backupReminderSnoozed');
+      updateBackupVisuals();
+    }
+
     function exportExcel() {
       const course = getActiveCourse();
       if (!course || course.students.length === 0) {
@@ -4473,6 +4673,7 @@
       XLSX.utils.book_append_sheet(wb, ws, course.name.slice(0, 31));
       const cleanName = course.name.replace(/[^a-zA-Z0-9äöüÄÖÜß]/g, '_');
       XLSX.writeFile(wb, `${cleanName}_Lernfortschritt_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      recordBackupTimestamp();
       showToast('Excel Datei erstellt');
     }
 
@@ -4526,6 +4727,7 @@
 
       const cleanName = course.name.replace(/[^a-zA-Z0-9äöüÄÖÜß]/g, '_');
       doc.save(`${cleanName}_Dokumentation_${new Date().toISOString().slice(0, 10)}.pdf`);
+      recordBackupTimestamp();
       showToast('PDF Tabelle heruntergeladen');
     }
 
@@ -4569,6 +4771,7 @@
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      recordBackupTimestamp();
       showToast('CSV heruntergeladen');
     }
 
@@ -4618,6 +4821,7 @@
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      recordBackupTimestamp();
       showToast('Komplett-Backup aller Kurse heruntergeladen');
     }
 
@@ -4997,6 +5201,7 @@
     function openModal(id) {
       const el = document.getElementById(id);
       if (el) el.classList.remove('hidden');
+      if (id === 'exportModal') updateBackupVisuals();
     }
     function closeModal(id) {
       const el = document.getElementById(id);
