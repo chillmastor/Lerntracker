@@ -876,10 +876,25 @@
         </button>
       </div>
 
+      <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl flex flex-col gap-1.5">
+        <span class="text-xs font-bold text-slate-800">CSV einspielen (Einzel- oder Komplettkurs)</span>
+        <p class="text-[11px] text-slate-600 leading-relaxed">
+          Überträgt Klassenlisten, Notizen und Niveaus aus einer CSV. Erkennt automatisch, ob die Datei einen einzelnen Kurs oder alle Kurse enthält.
+        </p>
+        <label class="w-full py-2 px-3 bg-white border border-slate-300 hover:bg-slate-100 text-slate-800 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer transition shadow-2xs">
+          <i class="fa-solid fa-upload text-slate-500"></i> CSV auswählen
+          <input type="file" id="csvFileInput" accept=".csv" onchange="importCSVFile(event)" class="hidden">
+        </label>
+      </div>
+
       <!-- KI-Assistent: Prompt für eine beliebige Chat-KI, Änderungsliste wieder einfügen -->
-      <div class="teacher-only flex flex-col gap-2 pt-1 border-t border-slate-100">
-        <span class="text-[11px] font-bold text-slate-700 uppercase tracking-wider">KI-Assistent</span>
-        <div class="p-3 bg-violet-50 border border-violet-200 rounded-xl flex flex-col gap-2">
+      <details id="kiAssistentBereich" class="teacher-only group pt-1 border-t border-slate-100">
+        <summary class="list-none [&::-webkit-details-marker]:hidden flex items-center gap-1.5 cursor-pointer select-none text-[11px] font-bold text-slate-700 uppercase tracking-wider py-1">
+          <i class="fa-solid fa-chevron-right text-[9px] text-slate-400 transition-transform group-open:rotate-90"></i>
+          <i class="fa-solid fa-wand-magic-sparkles text-violet-500 text-[11px]"></i> KI-Assistent
+          <span class="ml-auto normal-case tracking-normal font-normal text-slate-400">Prompt für eine Chat-KI</span>
+        </summary>
+        <div class="mt-1.5 p-3 bg-violet-50 border border-violet-200 rounded-xl flex flex-col gap-2">
           <p class="text-[11px] text-violet-950 leading-relaxed">
             Gib einer Chat-KI deine Daten und frag sie z.&nbsp;B. nach dem Notenschnitt, oder lass sie Kurse anlegen und Niveaus setzen. Die Änderungen fügst du hier wieder ein und prüfst sie vor dem Übernehmen.
           </p>
@@ -910,18 +925,7 @@
             </div>
           </div>
         </div>
-      </div>
-
-      <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl flex flex-col gap-1.5">
-        <span class="text-xs font-bold text-slate-800">CSV einspielen (Einzel- oder Komplettkurs)</span>
-        <p class="text-[11px] text-slate-600 leading-relaxed">
-          Überträgt Klassenlisten, Notizen und Niveaus aus einer CSV. Erkennt automatisch, ob die Datei einen einzelnen Kurs oder alle Kurse enthält.
-        </p>
-        <label class="w-full py-2 px-3 bg-white border border-slate-300 hover:bg-slate-100 text-slate-800 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer transition shadow-2xs">
-          <i class="fa-solid fa-upload text-slate-500"></i> CSV auswählen
-          <input type="file" id="csvFileInput" accept=".csv" onchange="importCSVFile(event)" class="hidden">
-        </label>
-      </div>
+      </details>
 
       <div class="border-t border-slate-100 pt-2 flex justify-between items-center">
         <button onclick="confirmResetCurrentCourse()" class="text-xs text-rose-500 hover:underline cursor-pointer">Aktuellen Kurs leeren</button>
