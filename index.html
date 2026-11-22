@@ -28,6 +28,7 @@
   <!-- Testbare Logikmodule (siehe docs/adr/0001) -->
   <script src="./notenliste.js"></script>
   <script src="./klassenliste.js"></script>
+  <script src="./ki-assistent.js"></script>
 
   <style>
     * {
@@ -173,7 +174,7 @@
             <div class="flex items-center gap-1.5">
               <h1 class="font-bold text-slate-900 leading-tight text-xs sm:text-sm">Lernfortschritts-Tracker</h1>
               <button onclick="openModal('changelogModal')" class="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded-md bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border border-emerald-300 transition cursor-pointer flex items-center gap-0.5 shadow-2xs" title="Versionshinweise ansehen">
-                <span>v1.11.0</span>
+                <span>v1.12.0</span>
                 <i class="fa-solid fa-circle-info text-[8px] text-emerald-600"></i>
               </button>
               <span id="studentModeBadge" class="hidden text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.2 rounded-md bg-indigo-100 text-indigo-800 border border-indigo-200">
@@ -262,7 +263,7 @@
           <i class="fa-solid fa-graduation-cap text-emerald-600 shrink-0 text-xs"></i>
           <span class="font-bold text-slate-900 truncate text-xs" id="compactCourseTitle">Kurs</span>
           <button onclick="openModal('changelogModal')" class="text-[9px] font-mono font-bold px-1 py-0.2 rounded bg-emerald-100 text-emerald-800 border border-emerald-300 shrink-0" title="Changelog">
-            v1.11.0
+            v1.12.0
           </button>
         </div>
 
@@ -875,6 +876,42 @@
         </button>
       </div>
 
+      <!-- KI-Assistent: Prompt für eine beliebige Chat-KI, Änderungsliste wieder einfügen -->
+      <div class="teacher-only flex flex-col gap-2 pt-1 border-t border-slate-100">
+        <span class="text-[11px] font-bold text-slate-700 uppercase tracking-wider">KI-Assistent</span>
+        <div class="p-3 bg-violet-50 border border-violet-200 rounded-xl flex flex-col gap-2">
+          <p class="text-[11px] text-violet-950 leading-relaxed">
+            Gib einer Chat-KI deine Daten und frag sie z.&nbsp;B. nach dem Notenschnitt, oder lass sie Kurse anlegen und Niveaus setzen. Die Änderungen fügst du hier wieder ein und prüfst sie vor dem Übernehmen.
+          </p>
+          <div class="text-[11px] px-2 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 leading-relaxed">
+            <i class="fa-solid fa-shield-halved mr-1"></i>Der Prompt enthält Namen, Noten und Bemerkungen der Kinder. Nutze ihn nur mit <strong>datenschutzkonformen Sprachmodellen</strong>, z.&nbsp;B. einem lokalen Modell oder einem von Schule bzw. Land freigegebenen Angebot.
+            <details class="mt-1">
+              <summary class="cursor-pointer font-semibold">Mehr erfahren</summary>
+              <p class="mt-1">Lokale Modelle laufen auf deinem eigenen Gerät, z.&nbsp;B. mit Ollama oder LM Studio. Dabei verlassen die Daten den Rechner nicht. Freie Cloud-Chats wie ChatGPT, Gemini oder Claude ohne Vertrag mit der Schule sind für Schülerdaten in der Regel nicht zulässig. Frag im Zweifel deine Schulleitung oder die Datenschutzbeauftragten, welches KI-Angebot freigegeben ist.</p>
+            </details>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <button type="button" onclick="kiPromptKopieren()" class="px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition">
+              <i class="fa-solid fa-wand-magic-sparkles text-[11px]"></i> KI-Prompt kopieren
+            </button>
+            <label class="flex items-center gap-1.5 text-[11px] text-violet-950 cursor-pointer select-none">
+              <input type="checkbox" id="kiNurAktiv" class="accent-violet-600"> nur aktiver Kurs
+            </label>
+          </div>
+          <p id="kiPromptInfo" class="hidden text-[11px] text-violet-900"></p>
+          <textarea id="kiPromptText" readonly rows="4" class="hidden w-full p-2 border border-violet-200 rounded-lg text-[11px] font-mono bg-white"></textarea>
+          <div class="flex flex-col gap-1.5 pt-1 border-t border-violet-200">
+            <span class="text-[11px] font-bold text-violet-950">Antwort der KI einfügen</span>
+            <textarea id="kiAntwortText" rows="4" placeholder="Die komplette Antwort der KI hier einfügen. Die App sucht die Änderungsliste selbst heraus." class="w-full p-2 border border-violet-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-violet-500"></textarea>
+            <div class="flex justify-end">
+              <button type="button" onclick="kiAntwortPruefen()" class="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer">
+                <i class="fa-solid fa-list-check text-[11px]"></i> Änderungen prüfen
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl flex flex-col gap-1.5">
         <span class="text-xs font-bold text-slate-800">CSV einspielen (Einzel- oder Komplettkurs)</span>
         <p class="text-[11px] text-slate-600 leading-relaxed">
@@ -889,6 +926,24 @@
       <div class="border-t border-slate-100 pt-2 flex justify-between items-center">
         <button onclick="confirmResetCurrentCourse()" class="text-xs text-rose-500 hover:underline cursor-pointer">Aktuellen Kurs leeren</button>
         <button onclick="closeModal('exportModal')" class="px-3.5 py-1.5 bg-slate-900 text-white rounded-lg text-xs font-semibold cursor-pointer">Schließen</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Änderungen aus der KI-Antwort prüfen -->
+  <div id="kiPreviewModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 hidden">
+    <div class="bg-white w-full max-w-xl rounded-2xl p-4 shadow-2xl border border-slate-100 flex flex-col gap-2.5 max-h-[90vh]">
+      <div class="flex justify-between items-start gap-2 border-b border-slate-100 pb-2">
+        <div>
+          <h3 class="font-bold text-slate-900 text-sm"><i class="fa-solid fa-wand-magic-sparkles text-violet-600 mr-1"></i>Änderungen der KI prüfen</h3>
+          <p id="kiPreviewSummary" class="text-[11px] text-slate-500"></p>
+        </div>
+        <button onclick="closeModal('kiPreviewModal')" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-base"></i></button>
+      </div>
+      <div id="kiPreviewBody" class="flex-1 min-h-0 overflow-y-auto flex flex-col gap-3 pr-1"></div>
+      <div class="flex justify-end gap-1.5 pt-2 border-t border-slate-100">
+        <button onclick="closeModal('kiPreviewModal')" class="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer">Abbrechen</button>
+        <button id="kiUebernehmenBtn" onclick="kiUebernehmen()" class="px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-semibold cursor-pointer flex items-center gap-1.5"><i class="fa-solid fa-check text-[11px]"></i> Übernehmen</button>
       </div>
     </div>
   </div>
@@ -958,10 +1013,23 @@
       </div>
 
       <div class="overflow-y-auto pr-1 flex flex-col gap-3 text-xs">
-        <!-- Version 1.11.0 -->
+        <!-- Version 1.12.0 -->
         <div class="border-l-2 border-emerald-500 pl-2.5 flex flex-col gap-1">
           <div class="flex items-center justify-between">
-            <span class="font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200 text-[10px]">v1.11.0 (Aktuell)</span>
+            <span class="font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200 text-[10px]">v1.12.0 (Aktuell)</span>
+            <span class="text-slate-500 font-medium text-[10px]">22.11.2026</span>
+          </div>
+          <p class="font-semibold text-slate-800">KI-Assistent für jede Chat-KI</p>
+          <ul class="list-disc list-inside text-slate-600 space-y-0.5 leading-relaxed text-[11px]">
+            <li><strong>KI-Prompt kopieren:</strong> Unter „Export &amp; Import“ entsteht ein ausführlicher Prompt mit allen Daten. Damit beantwortet eine Chat-KI Fragen wie „Wie ist der Notenschnitt?“ und schreibt auf Wunsch eine Änderungsliste, z. B. neue Kurse anlegen oder Niveaus setzen. Ein Hinweis empfiehlt datenschutzkonforme Modelle wie lokale Modelle.</li>
+            <li><strong>Änderungen der KI übernehmen:</strong> Antwort der KI einfügen, Vorschau prüfen, Rückfragen zu unklaren Namen beantworten, übernehmen. Löschungen müssen ausdrücklich bestätigt werden, und alles lässt sich mit „Rückgängig“ zurücknehmen.</li>
+          </ul>
+        </div>
+
+        <!-- Version 1.11.0 -->
+        <div class="border-l-2 border-slate-300 pl-2.5 flex flex-col gap-1">
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-slate-700 bg-slate-100 px-1.5 py-0.2 rounded text-[10px]">v1.11.0</span>
             <span class="text-slate-500 font-medium text-[10px]">22.11.2026</span>
           </div>
           <p class="font-semibold text-slate-800">Noten in die Notenliste übertragen & Kinder per Foto anlegen</p>
@@ -4905,29 +4973,8 @@
         return;
       }
 
-      let csv = '\uFEFF';
-      csv += `=== KURS: ${course.name} ===\r\n`;
-      const headers = ['Nachname', 'Vorname', 'Niveau', 'Fehltage', ...course.tasks.map(t => `"${t.title.replace(/"/g, '""')}"`), 'Bemerkung / Förderbedarf'];
-      csv += headers.join(';') + '\r\n';
-
-      const sortedStudents = getSortedStudents(course.students);
-      sortedStudents.forEach(s => {
-        const levelLabel = LEVEL_CONFIG[s.level || 'aufsteiger']?.label || 'Aufsteiger';
-        const row = [
-          `"${(s.lastName || '').replace(/"/g, '""')}"`,
-          `"${(s.firstName || '').replace(/"/g, '""')}"`,
-          `"${levelLabel}"`,
-          s.absenceCount || 0
-        ];
-        course.tasks.forEach(t => {
-          const key = `${s.id}_${t.id}`;
-          const rawVal = course.progress[key] || '';
-          const info = resolveStatusInfo(rawVal);
-          row.push(`"${(info.label || '').replace(/"/g, '""')}"`);
-        });
-        row.push(`"${(s.note || '').replace(/"/g, '""')}"`);
-        csv += row.join(';') + '\r\n';
-      });
+      // Gleiches Format wie die Komplett-Sicherung und der KI-Prompt (gemeinsame Logik im KI-Assistenten)
+      const csv = '\uFEFF' + KiAssistent.sicherungsCsv(appData, { kursIds: [course.id], sortiere: getSortedStudents });
 
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
@@ -4954,31 +5001,8 @@
       csv += `# Exportiert am ${new Date().toLocaleDateString('de-DE')} ${new Date().toLocaleTimeString('de-DE')}\r\n`;
       csv += `# Anzahl Kurse: ${appData.courses.length}\r\n\r\n`;
 
-      appData.courses.forEach(course => {
-        csv += `=== KURS: ${course.name} ===\r\n`;
-        const headers = ['Nachname', 'Vorname', 'Niveau', 'Fehltage', ...course.tasks.map(t => `"${t.title.replace(/"/g, '""')}"`), 'Bemerkung / Förderbedarf'];
-        csv += headers.join(';') + '\r\n';
-
-        const sortedStudents = getSortedStudents(course.students);
-        sortedStudents.forEach(s => {
-          const levelLabel = LEVEL_CONFIG[s.level || 'aufsteiger']?.label || 'Aufsteiger';
-          const row = [
-            `"${(s.lastName || '').replace(/"/g, '""')}"`,
-            `"${(s.firstName || '').replace(/"/g, '""')}"`,
-            `"${levelLabel}"`,
-            s.absenceCount || 0
-          ];
-          course.tasks.forEach(t => {
-            const key = `${s.id}_${t.id}`;
-            const rawVal = course.progress[key] || '';
-            const info = resolveStatusInfo(rawVal);
-            row.push(`"${(info.label || '').replace(/"/g, '""')}"`);
-          });
-          row.push(`"${(s.note || '').replace(/"/g, '""')}"`);
-          csv += row.join(';') + '\r\n';
-        });
-        csv += '\r\n';
-      });
+      // Gleiches Format wie der KI-Prompt (gemeinsame Logik im KI-Assistenten)
+      csv += KiAssistent.sicherungsCsv(appData, { sortiere: getSortedStudents });
 
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
@@ -5810,6 +5834,144 @@
 
       body.scrollTop = gt.schritt === gt._letzterSchritt ? scroll : 0;
       gt._letzterSchritt = gt.schritt;
+    }
+
+    // =========================================================================
+    // KI-Assistent (Adapter für ki-assistent.js)
+    // =========================================================================
+    const KI_PROMPT_LANG = 40000;
+    let kiZustand = null; // { text, antworten, plan }
+
+    async function kiPromptKopieren() {
+      const nurAktiv = document.getElementById('kiNurAktiv').checked;
+      if (!appData.courses.length) { showToast('Noch keine Kurse vorhanden'); }
+      const text = KiAssistent.promptErstellen(appData, {
+        datum: new Date().toLocaleDateString('de-DE'),
+        umfang: nurAktiv ? 'aktiv' : 'alle',
+        sortiere: getSortedStudents
+      });
+      const feld = document.getElementById('kiPromptText');
+      const info = document.getElementById('kiPromptInfo');
+      feld.value = text;
+      feld.classList.remove('hidden');
+      const tokens = Math.round(text.length / 3.5);
+      let hinweis = `ca. ${text.length.toLocaleString('de-DE')} Zeichen (rund ${tokens.toLocaleString('de-DE')} Tokens).`;
+      if (text.length > KI_PROMPT_LANG && !nurAktiv) hinweis += ' Sehr lang: Für kleinere oder lokale Modelle besser „nur aktiver Kurs“ wählen.';
+      let kopiert = false;
+      try {
+        await navigator.clipboard.writeText(text);
+        kopiert = true;
+      } catch (e) {
+        // Zweiter Weg (ältere Browser / gesperrte Zwischenablage): Text markieren und klassisch kopieren
+        try {
+          feld.focus();
+          feld.select();
+          feld.setSelectionRange(0, text.length);
+          kopiert = document.execCommand('copy');
+        } catch (e2) { kopiert = false; }
+      }
+      if (kopiert) {
+        info.textContent = `Prompt kopiert, ${hinweis} Füge ihn jetzt in den Chat ein.`;
+        showToast('KI-Prompt kopiert');
+      } else {
+        feld.focus();
+        feld.select();
+        info.textContent = `Kopieren war nicht möglich. Der Text ist markiert, bitte selbst kopieren. ${hinweis}`;
+      }
+      info.classList.remove('hidden');
+    }
+
+    function kiAntwortPruefen() {
+      const text = document.getElementById('kiAntwortText').value;
+      if (!text.trim()) { showToast('Bitte zuerst die Antwort der KI einfügen'); return; }
+      kiZustand = { text, antworten: {}, plan: null };
+      kiNeuPlanen();
+      document.getElementById('kiPreviewModal').classList.remove('hidden');
+    }
+
+    function kiNeuPlanen() {
+      kiZustand.plan = KiAssistent.planen(appData, kiZustand.text, kiZustand.antworten);
+      renderKiPreview();
+    }
+
+    function kiAntwort(id, wert) {
+      if (!kiZustand) return;
+      kiZustand.antworten[id] = wert;
+      kiNeuPlanen();
+    }
+
+    function renderKiPreview() {
+      const plan = kiZustand.plan;
+      document.getElementById('kiPreviewSummary').textContent = plan.zusammenfassung;
+      const teile = [];
+      if (!plan.gefunden) {
+        teile.push(`<div class="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700">
+          In der eingefügten Antwort steht keine Änderungsliste zwischen <code>${escapeHTML(KiAssistent.START)}</code> und <code>${escapeHTML(KiAssistent.ENDE)}</code>.
+          Wenn die KI nur eine Frage beantwortet hat, ist das richtig so. Sonst bitte sie: „Gib mir die Änderungsliste aus.“</div>`);
+      }
+      if (plan.rueckfragen.length) {
+        teile.push(`<div class="flex flex-col gap-1.5">
+          <span class="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Rückfragen</span>
+          ${plan.rueckfragen.map((f, i) => {
+            const gewaehlt = f.antwort !== undefined ? f.antwort : f.vorschlag;
+            const rot = f.art === 'loeschen';
+            return `<div class="p-2 rounded-xl border ${rot ? 'bg-rose-50 border-rose-200' : 'bg-amber-50 border-amber-200'} flex flex-col gap-1">
+              <span class="text-[11px] ${rot ? 'text-rose-900' : 'text-amber-950'}">${escapeHTML(f.frage)}${f.grund ? ` <span class="opacity-70">(${escapeHTML(f.grund)})</span>` : ''}${f.zeile ? ` <span class="opacity-60">· Zeile ${f.zeile}</span>` : ''}</span>
+              <select data-ki-frage="${i}" class="ki-frage w-full p-1.5 border border-slate-300 rounded-lg text-xs bg-white">
+                ${f.optionen.map(o => `<option value="${escapeHTML(o.wert)}" ${o.wert === gewaehlt ? 'selected' : ''}>${escapeHTML(o.label)}</option>`).join('')}
+              </select>
+            </div>`;
+          }).join('')}
+        </div>`);
+      }
+      if (plan.nichtVerstanden.length) {
+        teile.push(`<div class="flex flex-col gap-1">
+          <span class="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Nicht verstanden (wird ignoriert)</span>
+          ${plan.nichtVerstanden.map(n => `<div class="text-[11px] px-2 py-1 rounded-lg bg-slate-100 text-slate-700"><span class="font-mono">${escapeHTML(n.zeile)}</span><span class="block text-slate-500">Zeile ${n.nr}: ${escapeHTML(n.grund)}</span></div>`).join('')}
+        </div>`);
+      }
+      if (plan.aenderungen.length) {
+        teile.push(`<div class="flex flex-col gap-2">
+          <span class="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Das wird geändert</span>
+          ${plan.aenderungen.map(g => `<div class="rounded-xl border border-slate-200 overflow-hidden">
+            <div class="px-2.5 py-1.5 bg-slate-50 text-xs font-bold text-slate-800 flex items-center gap-1.5">${escapeHTML(g.kurs)}${g.neu ? '<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-semibold">neu</span>' : ''}<span class="ml-auto text-[10px] font-normal text-slate-500">${g.eintraege.length}</span></div>
+            <ul class="divide-y divide-slate-100">
+              ${g.eintraege.map(e => `<li class="px-2.5 py-1 text-[11px] ${e.loeschen ? 'bg-rose-50 text-rose-800 font-semibold' : e.ueberschreibt ? 'text-amber-900' : 'text-slate-700'}">${e.loeschen ? '<i class="fa-solid fa-trash-can mr-1"></i>' : e.ueberschreibt ? '<i class="fa-solid fa-pen mr-1 opacity-60" title="überschreibt einen vorhandenen Wert"></i>' : ''}${escapeHTML(e.text)}</li>`).join('')}
+            </ul>
+          </div>`).join('')}
+        </div>`);
+      } else if (plan.gefunden) {
+        teile.push('<div class="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700">Mit den aktuellen Antworten ändert sich nichts.</div>');
+      }
+      const body = document.getElementById('kiPreviewBody');
+      body.innerHTML = teile.join('');
+      body.querySelectorAll('.ki-frage').forEach(sel => {
+        sel.addEventListener('change', () => kiAntwort(plan.rueckfragen[Number(sel.dataset.kiFrage)].id, sel.value));
+      });
+      document.getElementById('kiUebernehmenBtn').disabled = !plan.aenderungen.length;
+    }
+
+    async function kiUebernehmen() {
+      if (!kiZustand || !kiZustand.plan || !kiZustand.plan.aenderungen.length) return;
+      const plan = kiZustand.plan;
+      const anzahl = plan.aenderungen.reduce((n, g) => n + g.eintraege.length, 0);
+      pushUndoState('KI-Änderungen übernommen');
+      const neu = KiAssistent.anwenden(appData, plan);
+      appData.courses = neu.courses;
+      appData.statuses = neu.statuses;
+      if (!appData.courses.some(c => c.id === appData.activeCourseId)) {
+        appData.activeCourseId = appData.courses.length ? appData.courses[0].id : null;
+      }
+      const neuerKurs = plan.aenderungen.find(g => g.neu && appData.courses.some(c => c.id === g.kursId));
+      if (neuerKurs) appData.activeCourseId = neuerKurs.kursId;
+      await saveToDB();
+      renderAll();
+      if (isFitToScreenActive) fitEntireTableToScreen();
+      kiZustand = null;
+      document.getElementById('kiAntwortText').value = '';
+      closeModal('kiPreviewModal');
+      closeModal('exportModal');
+      showToast(`${anzahl} Änderung${anzahl === 1 ? '' : 'en'} übernommen. „Rückgängig“ macht alles rückgängig.`);
     }
 
     // =========================================================================

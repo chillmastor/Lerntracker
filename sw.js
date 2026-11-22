@@ -7,6 +7,7 @@ const ASSETS_TO_CACHE = [
   './index.html',
   './notenliste.js',
   './klassenliste.js',
+  './ki-assistent.js',
   'https://cdn.tailwindcss.com',
   'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
@@ -47,7 +48,7 @@ self.addEventListener('fetch', (event) => {
   const eigeneDatei = url.origin === self.location.origin;
   if (event.request.method !== 'GET') return;
 
-  // Eigene Logikmodule (notenliste.js, klassenliste.js) wie die App selbst: Network-First,
+  // Eigene Logikmodule (notenliste.js, klassenliste.js, ki-assistent.js) wie die App selbst: Network-First,
   // damit Updates sofort ankommen und offline trotzdem die letzte Version läuft.
   if (eigeneDatei && /\.js$/.test(url.pathname) && !url.pathname.endsWith('/sw.js')) {
     event.respondWith(

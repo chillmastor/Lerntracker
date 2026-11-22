@@ -777,6 +777,9 @@
     setzeNeuberechnung,
     fachAusKursname,
     aliasSchluessel,
+    // Namensabgleich, auch vom KI-Assistenten genutzt: (kind {nachname, vorname, aliase}, gesucht {nachname, vorname})
+    // → null | { score, sicherheit: 'exakt' | 'ähnlich', grund }
+    vergleicheNamen: vergleiche,
     _intern: { namenGleich, fachAusKopf, adresse, parseAdresse }
   };
 });
