@@ -24,6 +24,10 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <!-- Testbare Logikmodule (siehe docs/adr/0001) -->
+  <script src="./notenliste.js"></script>
+  <script src="./klassenliste.js"></script>
 
   <style>
     * {
@@ -143,7 +147,7 @@
             <div class="flex items-center gap-1.5">
               <h1 class="font-bold text-slate-900 leading-tight text-xs sm:text-sm">Lernfortschritts-Tracker</h1>
               <button onclick="openModal('changelogModal')" class="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded-md bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border border-emerald-300 transition cursor-pointer flex items-center gap-0.5 shadow-2xs" title="Versionshinweise ansehen">
-                <span>v1.10.0</span>
+                <span>v1.11.0</span>
                 <i class="fa-solid fa-circle-info text-[8px] text-emerald-600"></i>
               </button>
               <span id="studentModeBadge" class="hidden text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.2 rounded-md bg-indigo-100 text-indigo-800 border border-indigo-200">
@@ -232,7 +236,7 @@
           <i class="fa-solid fa-graduation-cap text-emerald-600 shrink-0 text-xs"></i>
           <span class="font-bold text-slate-900 truncate text-xs" id="compactCourseTitle">Kurs</span>
           <button onclick="openModal('changelogModal')" class="text-[9px] font-mono font-bold px-1 py-0.2 rounded bg-emerald-100 text-emerald-800 border border-emerald-300 shrink-0" title="Changelog">
-            v1.10.0
+            v1.11.0
           </button>
         </div>
 
@@ -598,6 +602,33 @@
         </div>
         <button onclick="closeModal('addStudentModal')" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-base"></i></button>
       </div>
+      <!-- Klassenliste per Foto oder Text übernehmen -->
+      <div class="teacher-only flex flex-col gap-1.5">
+        <div class="flex flex-wrap gap-1.5">
+          <label class="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition">
+            <i class="fa-solid fa-camera text-[11px]"></i> Klassenliste fotografieren
+            <input type="file" id="classPhotoInput" accept="image/*" multiple class="hidden" onchange="handleClassPhotos(event)">
+          </label>
+          <button type="button" onclick="toggleClassTextPaste()" class="px-2.5 py-1 rounded-lg border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition">
+            <i class="fa-solid fa-paste text-[11px]"></i> Text einfügen
+          </button>
+        </div>
+        <div id="classTextPasteBox" class="hidden flex flex-col gap-1.5 p-2 bg-slate-50 border border-slate-200 rounded-xl">
+          <textarea id="classTextPasteInput" rows="5" placeholder="Eine Zeile pro Kind, z. B. „Nachname, Vorname“. Auch Text aus E-Mails, Excel oder der iPad-Funktion „Live Text“ funktioniert." class="w-full p-2 border border-slate-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500"></textarea>
+          <div class="flex justify-end">
+            <button type="button" onclick="applyClassTextPaste()" class="px-3 py-1 rounded-lg bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800 cursor-pointer">Namen übernehmen</button>
+          </div>
+        </div>
+        <div id="classPhotoStatus" class="hidden flex items-center gap-2 p-2 bg-emerald-50 border border-emerald-200 rounded-xl">
+          <i class="fa-solid fa-spinner fa-spin text-emerald-600 text-xs"></i>
+          <div class="flex-1 min-w-0">
+            <span id="classPhotoStatusText" class="block text-[11px] font-semibold text-emerald-900">Texterkennung läuft …</span>
+            <div class="h-1 mt-1 bg-emerald-100 rounded-full overflow-hidden"><div id="classPhotoProgress" class="h-full bg-emerald-500 transition-all" style="width:0%"></div></div>
+          </div>
+          <button type="button" onclick="cancelClassPhotoRecognition()" class="px-2 py-0.5 rounded-md text-[11px] font-semibold text-emerald-900 hover:bg-emerald-100 cursor-pointer">Abbrechen</button>
+        </div>
+        <p id="classImportHint" class="hidden text-[11px] px-2 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-900"></p>
+      </div>
       <div id="addStudentRowsContainer" class="flex flex-col gap-1.5 overflow-y-auto pr-1 max-h-[50vh]">
         <!-- Dynamische Zeilen -->
       </div>
@@ -681,8 +712,12 @@
         <label class="block text-xs font-semibold text-slate-600 mb-1">Klasse und Fach</label>
         <input type="text" id="newCourseName" placeholder="z. B. 5a Musik" class="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" onkeydown="if(event.key==='Enter') createCourse()">
         <label class="flex items-center gap-1.5 mt-2.5 text-xs text-slate-600 cursor-pointer">
-          <input type="checkbox" id="copyStudentsCheckbox" checked class="rounded text-emerald-600 focus:ring-0">
+          <input type="checkbox" id="copyStudentsCheckbox" checked class="rounded text-emerald-600 focus:ring-0" onchange="if(this.checked) document.getElementById('photoStudentsCheckbox').checked = false">
           <span>Schüler aus aktuellem Kurs übernehmen</span>
+        </label>
+        <label class="teacher-only flex items-center gap-1.5 mt-1.5 text-xs text-slate-600 cursor-pointer">
+          <input type="checkbox" id="photoStudentsCheckbox" class="rounded text-emerald-600 focus:ring-0" onchange="if(this.checked) document.getElementById('copyStudentsCheckbox').checked = false">
+          <span><i class="fa-solid fa-camera text-[10px] text-emerald-600"></i> Kinder per Foto einer Klassenliste hinzufügen</span>
         </label>
       </div>
       <div class="flex justify-end gap-1.5 pt-1">
@@ -803,6 +838,17 @@
         </div>
       </div>
 
+      <div class="teacher-only flex flex-col gap-2 pt-1 border-t border-slate-100">
+        <span class="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Für Zeugnisse & Konferenzen</span>
+        <button onclick="openGradeTransferModal()" class="p-2.5 bg-sky-50 hover:bg-sky-100 border border-sky-200 rounded-xl flex items-center gap-2.5 text-left transition cursor-pointer">
+          <i class="fa-solid fa-file-import text-sky-600 text-lg"></i>
+          <span>
+            <span class="block text-xs font-bold text-sky-950">Noten in Notenliste übertragen</span>
+            <span class="block text-[11px] text-sky-800/80">Trägt die Noten des Kurses in die Excel-Liste des Klassenlehrers ein.</span>
+          </span>
+        </button>
+      </div>
+
       <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl flex flex-col gap-1.5">
         <span class="text-xs font-bold text-slate-800">CSV einspielen (Einzel- oder Komplettkurs)</span>
         <p class="text-[11px] text-slate-600 leading-relaxed">
@@ -818,6 +864,21 @@
         <button onclick="confirmResetCurrentCourse()" class="text-xs text-rose-500 hover:underline cursor-pointer">Aktuellen Kurs leeren</button>
         <button onclick="closeModal('exportModal')" class="px-3.5 py-1.5 bg-slate-900 text-white rounded-lg text-xs font-semibold cursor-pointer">Schließen</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Modal: Noten in Notenliste übertragen -->
+  <div id="gradeTransferModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-40 hidden">
+    <div class="bg-white w-full max-w-2xl rounded-2xl p-4 shadow-2xl border border-slate-100 flex flex-col gap-3 max-h-[90vh]">
+      <div class="flex justify-between items-center border-b border-slate-100 pb-2">
+        <div>
+          <h3 class="font-bold text-slate-900 text-sm">Noten in Notenliste übertragen</h3>
+          <p id="gtStepLabel" class="text-[11px] text-slate-500"></p>
+        </div>
+        <button onclick="closeModal('gradeTransferModal')" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-base"></i></button>
+      </div>
+      <div id="gtBody" class="overflow-y-auto pr-1 flex flex-col gap-3 text-xs"></div>
+      <div id="gtFooter" class="border-t border-slate-100 pt-2 flex justify-between items-center gap-2"></div>
     </div>
   </div>
 
@@ -838,10 +899,24 @@
       </div>
 
       <div class="overflow-y-auto pr-1 flex flex-col gap-3 text-xs">
-        <!-- Version 1.10.0 -->
+        <!-- Version 1.11.0 -->
         <div class="border-l-2 border-emerald-500 pl-2.5 flex flex-col gap-1">
           <div class="flex items-center justify-between">
-            <span class="font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200 text-[10px]">v1.10.0 (Aktuell)</span>
+            <span class="font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200 text-[10px]">v1.11.0 (Aktuell)</span>
+            <span class="text-slate-500 font-medium text-[10px]">22.11.2026</span>
+          </div>
+          <p class="font-semibold text-slate-800">Noten in die Notenliste übertragen & Kinder per Foto anlegen</p>
+          <ul class="list-disc list-inside text-slate-600 space-y-0.5 leading-relaxed text-[11px]">
+            <li><strong>Noten in Notenliste übertragen:</strong> Überträgt die Noten eines Kurses direkt in die Excel-Notenliste des Klassenlehrers. Tab und Fachspalte werden vorgeschlagen und von dir bestätigt, Tippfehler in Namen werden erkannt und nachgefragt, bereits belegte Zellen nie ungefragt überschrieben. Formatierung und Formeln der Liste bleiben erhalten.</li>
+            <li><strong>Kinder per Foto anlegen:</strong> Klassenliste fotografieren, und die Namen landen als vorausgefüllte Zeilen im Dialog „Kinder hinzufügen“. Unsichere Zeilen sind gelb markiert. Die Texterkennung läuft vollständig auf dem Gerät und funktioniert nach dem ersten Mal auch offline.</li>
+            <li><strong>Text einfügen:</strong> Namenslisten aus E-Mails, Excel oder der iPad-Funktion „Live Text“ einfügen und automatisch in Vor- und Nachnamen zerlegen lassen.</li>
+          </ul>
+        </div>
+
+        <!-- Version 1.10.0 -->
+        <div class="border-l-2 border-slate-300 pl-2.5 flex flex-col gap-1">
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-slate-700 bg-slate-100 px-1.5 py-0.2 rounded text-[10px]">v1.10.0</span>
             <span class="text-slate-500 font-medium text-[10px]">22.09.2026</span>
           </div>
           <p class="font-semibold text-slate-800">5-Tage-Backup-Erinnerung, Smartboard-Bearbeitung & Beratungs-Warteschlange</p>
@@ -1866,11 +1941,14 @@
 
     function createCourse() {
       const input = document.getElementById('newCourseName');
-      const name = input.value.trim();
+      const photoCheckbox = document.getElementById('photoStudentsCheckbox');
+      const viaPhoto = !!(photoCheckbox && photoCheckbox.checked);
+      let name = input.value.trim();
+      if (!name && viaPhoto) name = PHOTO_COURSE_PLACEHOLDER;
       if (!name) return;
 
       pushUndoState(`Kurs "${name}" angelegt`);
-      const copyStudents = document.getElementById('copyStudentsCheckbox').checked;
+      const copyStudents = !viaPhoto && document.getElementById('copyStudentsCheckbox').checked;
       const currentCrs = getActiveCourse();
 
       const newId = 'course_' + Date.now();
@@ -1891,7 +1969,16 @@
       closeModal('addCourseModal');
       saveToDB();
       renderAll();
-      showToast(`Kurs "${escapeHTML(name)}" angelegt`);
+      showToast(`Kurs "${name}" angelegt`);
+
+      if (viaPhoto) {
+        photoCheckbox.checked = false;
+        pendingPhotoCourseId = newId;
+        openAddStudentModal();
+        // Läuft noch im Klick-Ereignis, daher darf die Dateiauswahl direkt geöffnet werden
+        const photoInput = document.getElementById('classPhotoInput');
+        if (photoInput) photoInput.click();
+      }
     }
 
     function openRenameCourseModal(courseId) {
@@ -4364,6 +4451,7 @@
     function openAddStudentModal() {
       const container = document.getElementById('addStudentRowsContainer');
       container.innerHTML = '';
+      resetClassImportUI();
       addStudentInputRow();
       openModal('addStudentModal');
       setTimeout(() => {
@@ -4372,10 +4460,11 @@
       }, 60);
     }
 
-    function addStudentInputRow(first = '', last = '', note = '') {
+    function addStudentInputRow(first = '', last = '', note = '', meta = {}) {
       const container = document.getElementById('addStudentRowsContainer');
       const row = document.createElement('div');
-      row.className = 'student-input-row grid grid-cols-12 gap-1.5 p-1.5 bg-slate-50 rounded-xl border border-slate-200 items-center transition';
+      const farbe = meta.unsicher ? 'bg-amber-50 border-amber-300' : 'bg-slate-50 border-slate-200';
+      row.className = `student-input-row grid grid-cols-12 gap-1.5 p-1.5 rounded-xl border items-center transition ${farbe}`;
       row.innerHTML = `
         <div class="row-first-container col-span-4">
           <input type="text" placeholder="Vorname (z. B. Mia)" value="${escapeHTML(first)}" class="row-first-name w-full px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500">
@@ -4383,16 +4472,35 @@
         <div class="row-last-container col-span-3">
           <input type="text" placeholder="Nachname (z. B. Schmidt)" value="${escapeHTML(last)}" class="row-last-name w-full px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500">
         </div>
-        <div class="teacher-only col-span-4">
+        <div class="teacher-only ${meta.importiert ? 'col-span-3' : 'col-span-4'}">
           <input type="text" placeholder="Notiz / Förderbedarf" value="${escapeHTML(note)}" class="row-note w-full px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500">
         </div>
+        ${meta.importiert ? `
+        <div class="col-span-1 flex justify-center">
+          <button type="button" onclick="swapStudentInputRow(this)" class="p-1 text-slate-400 hover:text-emerald-600 transition cursor-pointer" title="Vor- und Nachname tauschen">
+            <i class="fa-solid fa-right-left text-[11px]"></i>
+          </button>
+        </div>` : ''}
         <div class="col-span-1 flex justify-center">
           <button type="button" onclick="removeStudentInputRow(this)" class="p-1 text-slate-400 hover:text-rose-600 transition cursor-pointer" title="Zeile löschen">
             <i class="fa-solid fa-trash text-[11px]"></i>
           </button>
         </div>
+        ${meta.unsicher ? `
+        <div class="col-span-12 text-[10px] text-amber-800 flex items-center gap-1 px-1">
+          <i class="fa-solid fa-triangle-exclamation"></i> Bitte prüfen: ${escapeHTML(meta.grund || 'unsicher erkannt')}
+        </div>` : ''}
       `;
       container.appendChild(row);
+    }
+
+    function swapStudentInputRow(btn) {
+      const row = btn.closest('.student-input-row');
+      const f = row.querySelector('.row-first-name');
+      const l = row.querySelector('.row-last-name');
+      const tmp = f.value;
+      f.value = l.value;
+      l.value = tmp;
     }
 
     function removeStudentInputRow(btn) {
@@ -5220,6 +5328,621 @@
         toast.classList.add('translate-y-20', 'opacity-0');
         toast.classList.remove('translate-y-0', 'opacity-100');
       }, 3000);
+    }
+
+    // =========================================================================
+    // Noten in Notenliste übertragen (Adapter für das Modul Notenliste)
+    // =========================================================================
+    let gt = null;
+
+    function openGradeTransferModal() {
+      closeModal('exportModal');
+      const course = getActiveCourse();
+      gt = { schritt: 'start', courseId: course ? course.id : null, bytes: null, mappe: null, dateiName: '', basisName: '', suffixe: [], plan: null, fehler: null, uebertragen: [] };
+      renderGradeTransfer();
+      openModal('gradeTransferModal');
+    }
+
+    function gtCourse() {
+      return appData.courses.find(c => c.id === gt.courseId) || null;
+    }
+
+    function gtStudentNames(s) {
+      let vorname = s.firstName || '';
+      let nachname = s.lastName || '';
+      if (!vorname && !nachname && s.name) {
+        const teile = String(s.name).trim().split(/\s+/);
+        nachname = teile.length > 1 ? teile.pop() : teile[0];
+        vorname = teile.length ? teile.join(' ') : '';
+      }
+      return { vorname, nachname };
+    }
+
+    function gtIsGradeStatus(st) {
+      return st.id.startsWith('stat_note_') || /^([1-6][+-]?|[1-6]\s*-\s*[1-6])$/.test(String(st.short || '').trim());
+    }
+
+    function gtStudentValue(course, student, taskId) {
+      if (!taskId) return { wert: null };
+      const raw = course.progress[`${student.id}_${taskId}`];
+      if (raw === undefined || raw === null || String(raw).trim() === '' || raw === 'stat_nb') return { wert: null };
+      const info = resolveStatusInfo(raw);
+      if (info.isStatus) {
+        const st = appData.statuses.find(x => x.id === info.statusId);
+        if (st && gtIsGradeStatus(st)) return { wert: st.short };
+        return { wert: info.short, wertHinweis: 'kein-notenwert' };
+      }
+      return { wert: String(raw).trim() };
+    }
+
+    function gtKontext() {
+      const c = gtCourse();
+      const ge = c.gradeExport || {};
+      return {
+        kursName: c.name,
+        lehrerKuerzel: appData.teacherShort || '',
+        fach: ge.subjectOverride || null,
+        gemerkt: { blatt: ge.lastSheetName || null, spalte: ge.lastColumnHeader || null },
+        schueler: c.students.map(s => ({ id: s.id, ...gtStudentNames(s), aliase: s.nameAliases || [], ...gtStudentValue(c, s, ge.taskId) }))
+      };
+    }
+
+    function gtLeseMappe(bytes) {
+      const wb = XLSX.read(bytes, { type: 'array', cellFormula: true });
+      return {
+        blaetter: wb.SheetNames.map(name => {
+          const ws = wb.Sheets[name];
+          const zellen = [];
+          Object.keys(ws).forEach(adr => {
+            if (adr[0] === '!') return;
+            const cell = ws[adr];
+            const { r, c } = XLSX.utils.decode_cell(adr);
+            (zellen[r] = zellen[r] || [])[c] = cell.f ? { wert: cell.v, formel: true } : cell.v;
+          });
+          return { name, zellen };
+        })
+      };
+    }
+
+    async function gtDateiGewaehlt(ev) {
+      const f = ev.target.files && ev.target.files[0];
+      ev.target.value = '';
+      if (!f) return;
+      gt.fehler = null;
+      if (!/\.xlsx$/i.test(f.name)) {
+        gt.fehler = 'Bitte eine Excel-Datei im Format .xlsx wählen. Alte .xls-Dateien vorher in Excel als .xlsx speichern.';
+        renderGradeTransfer();
+        return;
+      }
+      try {
+        const bytes = new Uint8Array(await f.arrayBuffer());
+        gt.mappe = gtLeseMappe(bytes);
+        gt.bytes = bytes;
+        gt.dateiName = f.name;
+        gt.basisName = f.name.replace(/\.xlsx$/i, '');
+        gt.suffixe = [];
+      } catch (err) {
+        console.error(err);
+        gt.bytes = null;
+        gt.mappe = null;
+        gt.fehler = 'Die Datei konnte nicht gelesen werden. Ist es eine gültige Excel-Datei?';
+      }
+      renderGradeTransfer();
+    }
+
+    function gtStarten() {
+      const c = gtCourse();
+      if (!c) return;
+      const taskId = document.getElementById('gtTaskSelect').value;
+      if (!taskId) { gt.fehler = 'Bitte die Spalte mit der Zeugnisnote wählen.'; renderGradeTransfer(); return; }
+      if (!gt.mappe) { gt.fehler = 'Bitte zuerst die Excel-Datei des Klassenlehrers wählen.'; renderGradeTransfer(); return; }
+      appData.teacherShort = document.getElementById('gtTeacherShort').value.trim();
+      c.gradeExport = { ...(c.gradeExport || {}), taskId, subjectOverride: document.getElementById('gtSubjectOverride').value.trim() || null };
+      saveToDB();
+      gt.fehler = null;
+      gt.plan = Notenliste.planen(gt.mappe, gtKontext());
+      if (gt.plan.rueckfragen.some(r => r.typ === 'blatt')) gt.schritt = 'blatt';
+      else if (gt.plan.fehler) { gt.fehler = gt.plan.fehler; gt.schritt = 'start'; }
+      else gt.schritt = 'spalte';
+      renderGradeTransfer();
+    }
+
+    function gtAntwort(antworten, naechsterSchritt) {
+      gt.plan = Notenliste.entscheiden(gt.plan, antworten);
+      if (naechsterSchritt) gt.schritt = naechsterSchritt;
+      renderGradeTransfer();
+    }
+
+    function gtBlattWeiter() {
+      const sel = document.querySelector('input[name="gtBlatt"]:checked');
+      if (!sel) return;
+      gt.plan = Notenliste.entscheiden(gt.plan, { blatt: sel.value });
+      gt.schritt = gt.plan.fehler ? 'blatt' : 'spalte';
+      renderGradeTransfer();
+    }
+
+    function gtSpalteWeiter() {
+      const sel = document.querySelector('input[name="gtSpalte"]:checked');
+      if (!sel) return;
+      gt.plan = Notenliste.entscheiden(gt.plan, { spalte: Number(sel.value) });
+      gt.schritt = gtOffeneFragen().length ? 'fragen' : 'vorschau';
+      renderGradeTransfer();
+    }
+
+    function gtOffeneFragen() {
+      return gt.plan.rueckfragen.filter(r => ['name', 'kind', 'konflikt'].includes(r.typ) && (r.antwort === null || r.antwort === undefined));
+    }
+
+    function gtFragenWeiter() {
+      if (gtOffeneFragen().length) { showToast('Bitte zuerst alle Rückfragen beantworten'); return; }
+      gt.schritt = 'vorschau';
+      renderGradeTransfer();
+    }
+
+    function gtKindZuordnen(sid, value) {
+      if (value === '') return;
+      gtAntwort({ ['kind:' + sid]: value === 'ueberspringen' ? 'ueberspringen' : Number(value) });
+    }
+
+    async function gtHerunterladen() {
+      const plan = gt.plan;
+      const c = gtCourse();
+      if (!plan || !plan.fertig) return;
+      try {
+        const zip = await JSZip.loadAsync(gt.bytes);
+        const wbXml = await zip.file('xl/workbook.xml').async('string');
+        const relsXml = await zip.file('xl/_rels/workbook.xml.rels').async('string');
+        const pfad = Notenliste.blattPfade(wbXml, relsXml)[plan.gemerkt.blatt];
+        if (!pfad || !zip.file(pfad)) throw new Error('Tabellenblatt nicht gefunden: ' + plan.gemerkt.blatt);
+        const blattXml = await zip.file(pfad).async('string');
+        zip.file(pfad, Notenliste.patcheBlattXml(blattXml, plan.ausfuehren));
+        zip.file('xl/workbook.xml', Notenliste.setzeNeuberechnung(wbXml));
+        const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+
+        const fachTeil = [plan.fach, appData.teacherShort].filter(Boolean).join(' ') || c.name;
+        if (!gt.suffixe.includes(fachTeil)) gt.suffixe.push(fachTeil);
+        const dateiName = `${gt.basisName} – ${gt.suffixe.join(', ')}.xlsx`.replace(/[\\/:*?"<>|]/g, '-');
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = dateiName;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 4000);
+
+        // Ergebnis als Grundlage für weitere Kurse in derselben Datei
+        gt.bytes = new Uint8Array(await blob.arrayBuffer());
+        gt.mappe = gtLeseMappe(gt.bytes);
+        gt.dateiName = dateiName;
+
+        // Merken: Tab, Spalte, bestätigte Namensschreibweisen
+        c.gradeExport = { ...(c.gradeExport || {}), lastSheetName: plan.gemerkt.blatt, lastColumnHeader: plan.gemerkt.spalte };
+        plan.neueAliase.forEach(a => {
+          const s = c.students.find(x => x.id === a.schuelerId);
+          if (s) s.nameAliases = [...new Set([...(s.nameAliases || []), a.alias])];
+        });
+        saveToDB();
+
+        gt.uebertragen.push({ kurs: c.name, anzahl: plan.ausfuehren.length, blatt: plan.gemerkt.blatt });
+        gt.schritt = 'fertig';
+        renderGradeTransfer();
+      } catch (err) {
+        console.error(err);
+        showToast('Die Datei konnte nicht geschrieben werden.');
+      }
+    }
+
+    function gtWeitererKurs() {
+      gt.schritt = 'start';
+      gt.plan = null;
+      gt.fehler = null;
+      renderGradeTransfer();
+    }
+
+    function gtName(p) {
+      return escapeHTML([p.vorname, p.nachname].filter(Boolean).join(' '));
+    }
+
+    function gtWert(v) {
+      if (v === null || v === undefined || v === '') return '<span class="text-slate-400">leer</span>';
+      return `<span class="font-mono font-bold">${escapeHTML(String(v))}</span>`;
+    }
+
+    function gtHinweiseHtml() {
+      if (!gt.plan || !gt.plan.hinweise.length) return '';
+      return gt.plan.hinweise.map(h => {
+        const warn = h.typ !== 'info';
+        return `<div class="px-2.5 py-1.5 rounded-lg border text-[11px] ${warn ? 'bg-amber-50 border-amber-200 text-amber-900' : 'bg-slate-50 border-slate-200 text-slate-600'}">
+          <i class="fa-solid ${warn ? 'fa-triangle-exclamation' : 'fa-circle-info'}"></i> ${escapeHTML(h.text)}</div>`;
+      }).join('');
+    }
+
+    function renderGradeTransfer() {
+      const body = document.getElementById('gtBody');
+      const footer = document.getElementById('gtFooter');
+      const label = document.getElementById('gtStepLabel');
+      const scroll = body.scrollTop;
+      const c = gtCourse();
+      const fehler = gt.fehler ? `<div class="px-2.5 py-1.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-[11px]"><i class="fa-solid fa-circle-exclamation"></i> ${escapeHTML(gt.fehler)}</div>` : '';
+      const btn = (text, onclick, primaer = false, disabled = false) =>
+        `<button ${disabled ? 'disabled' : ''} onclick="${onclick}" class="px-3.5 py-1.5 rounded-lg text-xs font-semibold cursor-pointer ${primaer ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'text-slate-600 hover:bg-slate-100'} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}">${text}</button>`;
+      const hatBlattwahl = gt.plan && gt.plan.rueckfragen.some(r => r.typ === 'blatt');
+
+      if (gt.schritt === 'start') {
+        label.textContent = 'Schritt 1: Kurs, Notenspalte und Datei wählen';
+        const ge = (c && c.gradeExport) || {};
+        const fachErkannt = c ? Notenliste.fachAusKursname(c.name) : null;
+        body.innerHTML = `
+          ${fehler}
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <label class="flex flex-col gap-1">
+              <span class="font-semibold text-slate-700">Kurs</span>
+              <select id="gtCourseSelect" onchange="gt.courseId = this.value; gt.fehler = null; renderGradeTransfer()" class="px-2.5 py-1.5 border border-slate-200 rounded-lg bg-white">
+                ${appData.courses.map(k => `<option value="${k.id}" ${c && k.id === c.id ? 'selected' : ''}>${escapeHTML(k.name)}</option>`).join('')}
+              </select>
+            </label>
+            <label class="flex flex-col gap-1">
+              <span class="font-semibold text-slate-700">Spalte mit der Zeugnisnote</span>
+              <select id="gtTaskSelect" class="px-2.5 py-1.5 border border-slate-200 rounded-lg bg-white">
+                <option value="">– bitte wählen –</option>
+                ${c ? c.tasks.map(t => `<option value="${t.id}" ${t.id === ge.taskId ? 'selected' : ''}>${escapeHTML(t.title)}</option>`).join('') : ''}
+              </select>
+            </label>
+            <label class="flex flex-col gap-1">
+              <span class="font-semibold text-slate-700">Dein Lehrerkürzel</span>
+              <input id="gtTeacherShort" type="text" maxlength="8" value="${escapeHTML(appData.teacherShort || '')}" placeholder="z. B. Sha" class="px-2.5 py-1.5 border border-slate-200 rounded-lg">
+              <span class="text-[10px] text-slate-500">Hilft, deine Spalte zu finden, wenn ein Fach mehrfach vorkommt.</span>
+            </label>
+            <label class="flex flex-col gap-1">
+              <span class="font-semibold text-slate-700">Fach</span>
+              <input id="gtSubjectOverride" type="text" value="${escapeHTML(ge.subjectOverride || '')}" placeholder="${fachErkannt ? 'Erkannt: ' + escapeHTML(fachErkannt) : 'z. B. Englisch'}" class="px-2.5 py-1.5 border border-slate-200 rounded-lg">
+              <span class="text-[10px] text-slate-500">${fachErkannt ? `Aus dem Kursnamen erkannt: <strong>${escapeHTML(fachErkannt)}</strong>. Nur ausfüllen, wenn das nicht stimmt.` : 'Konnte nicht aus dem Kursnamen erkannt werden.'}</span>
+            </label>
+          </div>
+          <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl flex flex-col gap-1.5">
+            <span class="font-semibold text-slate-700">Notenliste des Klassenlehrers (.xlsx)</span>
+            ${gt.mappe ? `<span class="text-[11px] text-emerald-800"><i class="fa-solid fa-file-excel"></i> ${escapeHTML(gt.dateiName)} · ${gt.mappe.blaetter.length} Tab(s)</span>` : ''}
+            <label class="w-full py-2 px-3 bg-white border border-slate-300 hover:bg-slate-100 text-slate-800 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer transition">
+              <i class="fa-solid fa-upload text-slate-500"></i> ${gt.mappe ? 'Andere Datei wählen' : 'Excel-Datei wählen'}
+              <input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onchange="gtDateiGewaehlt(event)" class="hidden">
+            </label>
+            <span class="text-[10px] text-slate-500">Die Datei bleibt auf deinem Gerät. Du bekommst eine Kopie mit deinen Noten zum Herunterladen.</span>
+          </div>`;
+        footer.innerHTML = `${btn('Abbrechen', "closeModal('gradeTransferModal')")}${btn('Weiter', 'gtStarten()', true)}`;
+      }
+
+      else if (gt.schritt === 'blatt') {
+        label.textContent = 'Schritt 2: Welcher Tab soll gefüllt werden?';
+        const frage = gt.plan.rueckfragen.find(r => r.typ === 'blatt');
+        const auswahl = gt.plan.blatt || gt.plan.blattVorschlag;
+        body.innerHTML = `
+          ${fehler}${gt.plan.fehler && gt.plan.blatt ? `<div class="px-2.5 py-1.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-[11px]">${escapeHTML(gt.plan.fehler)}</div>` : ''}
+          <p class="text-slate-600">Die Datei hat ${frage.optionen.length} Tabs. Der Vorschlag ist markiert.</p>
+          <div class="flex flex-col gap-1.5">
+            ${frage.optionen.map(o => `
+              <label class="flex items-center gap-2.5 p-2 rounded-xl border ${o.waehlbar ? 'cursor-pointer hover:bg-slate-50' : 'opacity-50 cursor-not-allowed'} ${o.name === gt.plan.blattVorschlag ? 'border-emerald-400 bg-emerald-50/50' : 'border-slate-200'}">
+                <input type="radio" name="gtBlatt" value="${escapeHTML(o.name)}" ${o.name === auswahl ? 'checked' : ''} ${o.waehlbar ? '' : 'disabled'}>
+                <span class="flex-1">
+                  <span class="font-bold text-slate-900">${escapeHTML(o.name)}</span>
+                  ${o.name === gt.plan.blattVorschlag ? '<span class="ml-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-600 text-white">Vorschlag</span>' : ''}
+                  <span class="block text-[11px] text-slate-500">
+                    ${o.waehlbar ? `${o.kinderAnzahl} Kinder` : 'Keine Namensliste'}${o.klasse ? ` · Klasse ${escapeHTML(o.klasse)}` : ''}${o.schuljahr ? ` · ${escapeHTML(o.schuljahr)}` : ''}${o.halbjahr ? ` · ${escapeHTML(String(o.halbjahr))}. Hj.` : ''}${o.waehlbar ? (o.fachTreffer ? ' · <span class="text-emerald-700 font-semibold">deine Fachspalte gefunden</span>' : ' · keine passende Fachspalte') : ''}
+                  </span>
+                </span>
+              </label>`).join('')}
+          </div>`;
+        footer.innerHTML = `${btn('Zurück', "gt.schritt='start'; renderGradeTransfer()")}${btn('Weiter', 'gtBlattWeiter()', true)}`;
+      }
+
+      else if (gt.schritt === 'spalte') {
+        label.textContent = `${hatBlattwahl ? 'Schritt 3' : 'Schritt 2'}: In welche Spalte sollen die Noten?`;
+        const plan = gt.plan;
+        const auswahl = plan.spalte !== null ? plan.spalte : plan.spaltenVorschlag;
+        const kinder = (plan.blaetter.find(b => b.name === (plan.blatt || plan.blattVorschlag)) || {}).kinderAnzahl || 0;
+        body.innerHTML = `
+          ${fehler}${gtHinweiseHtml()}
+          <p class="text-slate-600">Tab <strong>${escapeHTML(plan.blatt || plan.blattVorschlag)}</strong>${plan.fach ? ` · Fach <strong>${escapeHTML(plan.fach)}</strong>` : ''}${appData.teacherShort ? ` · Kürzel <strong>${escapeHTML(appData.teacherShort)}</strong>` : ''}. ${plan.spaltenVorschlag === null ? 'Keine Spalte passt eindeutig – bitte wählen.' : 'Der Vorschlag ist markiert.'}</p>
+          ${plan.spalten.length ? `<div class="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+            ${plan.spalten.map(s => `
+              <label class="flex items-start gap-2 p-2 rounded-xl border cursor-pointer hover:bg-slate-50 ${s.spalte === plan.spaltenVorschlag ? 'border-emerald-400 bg-emerald-50/50' : 'border-slate-200'}">
+                <input type="radio" name="gtSpalte" value="${s.spalte}" ${s.spalte === auswahl ? 'checked' : ''} class="mt-0.5">
+                <span class="min-w-0">
+                  <span class="font-bold text-slate-900">${escapeHTML(s.kopf)}</span>${s.kuerzel ? ` <span class="text-slate-500">· ${escapeHTML(s.kuerzel)}</span>` : ''}
+                  <span class="block text-[10px] text-slate-500">Spalte ${s.buchstabe} · ${s.befuellt}/${kinder} befüllt</span>
+                  ${s.grund ? `<span class="block text-[10px] ${s.spalte === plan.spaltenVorschlag ? 'text-emerald-700 font-semibold' : 'text-slate-500'}">${escapeHTML(s.grund)}</span>` : ''}
+                </span>
+              </label>`).join('')}
+          </div>` : '<p class="text-rose-700">In diesem Tab wurden keine Fachspalten gefunden.</p>'}`;
+        footer.innerHTML = `${btn('Zurück', hatBlattwahl ? "gt.schritt='blatt'; renderGradeTransfer()" : "gt.schritt='start'; renderGradeTransfer()")}${btn('Weiter', 'gtSpalteWeiter()', true, !plan.spalten.length)}`;
+      }
+
+      else if (gt.schritt === 'fragen') {
+        label.textContent = 'Rückfragen klären';
+        const plan = gt.plan;
+        const fragen = plan.rueckfragen.filter(r => ['name', 'kind', 'konflikt'].includes(r.typ));
+        const konflikte = fragen.filter(r => r.typ === 'konflikt');
+        const offen = gtOffeneFragen().length;
+        body.innerHTML = `
+          ${gtHinweiseHtml()}
+          <p class="text-slate-600">${offen ? `Noch <strong>${offen}</strong> offene Rückfrage(n).` : 'Alles geklärt.'}</p>
+          ${fragen.filter(r => r.typ === 'name').map(r => `
+            <div class="p-2.5 rounded-xl border ${r.antwort === null ? 'border-amber-300 bg-amber-50' : 'border-slate-200'} flex flex-col gap-1.5">
+              <span class="text-[11px] text-amber-900 font-semibold"><i class="fa-solid fa-user-pen"></i> ${escapeHTML(r.grund)}</span>
+              <div class="grid grid-cols-2 gap-2">
+                <div><span class="block text-[10px] text-slate-500">In deinem Kurs</span><span class="font-bold">${gtName(r.schueler)}</span></div>
+                <div><span class="block text-[10px] text-slate-500">In der Liste (Zeile ${escapeHTML(r.liste.adresse.replace(/^[A-Z]+/, ''))})</span><span class="font-bold">${gtName(r.liste)}</span></div>
+              </div>
+              <div class="flex gap-1.5">
+                <button onclick="gtAntwort({'name:${r.schuelerId}': true})" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold ${r.antwort === true ? 'bg-emerald-600 text-white' : 'bg-white border border-slate-300 text-slate-700'}">Ja, dasselbe Kind</button>
+                <button onclick="gtAntwort({'name:${r.schuelerId}': false})" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-white border border-slate-300 text-slate-700">Nein</button>
+              </div>
+            </div>`).join('')}
+          ${fragen.filter(r => r.typ === 'kind').map(r => `
+            <div class="p-2.5 rounded-xl border ${r.antwort === null ? 'border-amber-300 bg-amber-50' : 'border-slate-200'} flex flex-col gap-1.5">
+              <span class="text-[11px] text-amber-900 font-semibold"><i class="fa-solid fa-user-slash"></i> <span class="font-bold">${gtName(r.schueler)}</span> wurde in der Liste nicht gefunden</span>
+              <select onchange="gtKindZuordnen('${r.schuelerId}', this.value)" class="px-2 py-1 border border-slate-300 rounded-lg bg-white text-[11px]">
+                <option value="">– Zeile zuordnen oder überspringen –</option>
+                <option value="ueberspringen" ${r.antwort === 'ueberspringen' ? 'selected' : ''}>Nicht übertragen (überspringen)</option>
+                ${r.optionen.map(o => `<option value="${o.zeile}">Zeile ${o.zeile + 1}: ${gtName(o)}</option>`).join('')}
+              </select>
+            </div>`).join('')}
+          ${konflikte.length ? `
+            <div class="flex items-center justify-between gap-2 pt-1">
+              <span class="font-semibold text-slate-700">${konflikte.length} Zelle(n) enthalten schon eine andere Note</span>
+              <span class="flex gap-1.5">
+                <button onclick="gtAntwort({alleKonflikte: 'ueberschreiben'})" class="px-2 py-1 rounded-lg text-[11px] font-semibold bg-white border border-slate-300">Alle überschreiben</button>
+                <button onclick="gtAntwort({alleKonflikte: 'behalten'})" class="px-2 py-1 rounded-lg text-[11px] font-semibold bg-white border border-slate-300">Alle behalten</button>
+              </span>
+            </div>
+            ${konflikte.map(r => `
+              <div class="p-2 rounded-xl border ${r.antwort === null ? 'border-amber-300 bg-amber-50' : 'border-slate-200'} flex items-center justify-between gap-2">
+                <span><span class="font-bold">${gtName(r.schueler)}</span> · Zelle ${escapeHTML(r.adresse)}: ${gtWert(r.alt)} → ${gtWert(r.neu)}</span>
+                <span class="flex gap-1.5 shrink-0">
+                  <button onclick="gtAntwort({'konflikt:${r.schuelerId}': 'ueberschreiben'})" class="px-2 py-1 rounded-lg text-[11px] font-semibold ${r.antwort === 'ueberschreiben' ? 'bg-emerald-600 text-white' : 'bg-white border border-slate-300'}">Überschreiben</button>
+                  <button onclick="gtAntwort({'konflikt:${r.schuelerId}': 'behalten'})" class="px-2 py-1 rounded-lg text-[11px] font-semibold ${r.antwort === 'behalten' ? 'bg-slate-800 text-white' : 'bg-white border border-slate-300'}">Behalten</button>
+                </span>
+              </div>`).join('')}` : ''}
+          ${!konflikte.length && gt.plan.antworten.alleKonflikte ? `<p class="text-slate-500">Vorhandene Noten: ${gt.plan.antworten.alleKonflikte === 'ueberschreiben' ? 'werden überschrieben' : 'bleiben erhalten'}. <button class="underline" onclick="gtAntwort({alleKonflikte: undefined})">ändern</button></p>` : ''}`;
+        footer.innerHTML = `${btn('Zurück', "gt.schritt='spalte'; renderGradeTransfer()")}${btn('Zur Vorschau', 'gtFragenWeiter()', true, offen > 0)}`;
+      }
+
+      else if (gt.schritt === 'vorschau') {
+        label.textContent = 'Vorschau prüfen';
+        const plan = gt.plan;
+        const z = plan.zusammenfassung;
+        const artText = w => {
+          if (w.art === 'leer') return '<span class="text-emerald-700 font-semibold">wird eingetragen</span>';
+          if (w.art === 'gleich') return '<span class="text-slate-500">bereits eingetragen</span>';
+          if (w.art === 'formel') return '<span class="text-amber-700">Formel – bleibt</span>';
+          return w.entscheidung === 'ueberschreiben' ? '<span class="text-rose-700 font-semibold">wird überschrieben</span>' : '<span class="text-slate-500">bleibt wie bisher</span>';
+        };
+        const liste = (titel, eintraege) => eintraege.length ? `<div><span class="font-semibold text-slate-700">${titel} (${eintraege.length})</span><p class="text-[11px] text-slate-600">${eintraege.map(gtName).join(', ')}</p></div>` : '';
+        body.innerHTML = `
+          ${gtHinweiseHtml()}
+          <div class="flex flex-wrap gap-1.5">
+            <span class="px-2 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-900 font-semibold">${z.zuSchreiben} werden eingetragen</span>
+            ${z.gleich ? `<span class="px-2 py-1 rounded-lg bg-slate-50 border border-slate-200 text-slate-700">${z.gleich} schon gleich</span>` : ''}
+            ${z.behalten ? `<span class="px-2 py-1 rounded-lg bg-slate-50 border border-slate-200 text-slate-700">${z.behalten} behalten</span>` : ''}
+          </div>
+          <div class="border border-slate-200 rounded-xl overflow-hidden">
+            <table class="w-full text-[11px]">
+              <thead class="bg-slate-50 text-slate-600"><tr><th class="text-left p-1.5">Kind</th><th class="text-left p-1.5">Zelle</th><th class="text-left p-1.5">Bisher</th><th class="text-left p-1.5">Neu</th><th class="text-left p-1.5">Status</th></tr></thead>
+              <tbody>${plan.schreibungen.map(w => `<tr class="border-t border-slate-100"><td class="p-1.5">${gtName(w)}</td><td class="p-1.5 font-mono">${escapeHTML(w.adresse)}</td><td class="p-1.5">${gtWert(w.alt)}</td><td class="p-1.5">${gtWert(w.neu)}</td><td class="p-1.5">${artText(w)}</td></tr>`).join('') || '<tr><td colspan="5" class="p-2 text-slate-500">Keine Noten zu übertragen.</td></tr>'}</tbody>
+            </table>
+          </div>
+          ${liste('Ohne Note in der gewählten Spalte', z.ohneNote)}
+          ${liste('Lernstatus statt Note – nicht übertragen', z.keinNotenwert)}
+          ${liste('Übersprungen', z.uebersprungen)}
+          ${liste('In der Liste, aber nicht in deinem Kurs', z.fehlendImKurs)}`;
+        footer.innerHTML = `${btn('Zurück', gtOffeneFragen().length || plan.rueckfragen.some(r => ['name', 'kind', 'konflikt'].includes(r.typ)) ? "gt.schritt='fragen'; renderGradeTransfer()" : "gt.schritt='spalte'; renderGradeTransfer()")}${btn('<i class="fa-solid fa-download"></i> Datei herunterladen', 'gtHerunterladen()', true, !plan.fertig || plan.ausfuehren.length === 0)}`;
+      }
+
+      else if (gt.schritt === 'fertig') {
+        label.textContent = 'Fertig';
+        body.innerHTML = `
+          <div class="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 flex flex-col gap-1">
+            <span class="font-bold"><i class="fa-solid fa-circle-check"></i> Datei heruntergeladen: ${escapeHTML(gt.dateiName)}</span>
+            ${gt.uebertragen.map(u => `<span class="text-[11px]">${escapeHTML(u.kurs)}: ${u.anzahl} Note(n) in Tab „${escapeHTML(u.blatt)}“ eingetragen</span>`).join('')}
+          </div>
+          <p class="text-slate-600">Du unterrichtest noch ein Fach in dieser Klasse? Übertrage den nächsten Kurs in dieselbe Datei – die heruntergeladene Version wird dafür weiterverwendet.</p>`;
+        footer.innerHTML = `${btn('Weiteren Kurs in diese Datei übertragen', 'gtWeitererKurs()')}${btn('Schließen', "closeModal('gradeTransferModal')", true)}`;
+      }
+
+      body.scrollTop = gt.schritt === gt._letzterSchritt ? scroll : 0;
+      gt._letzterSchritt = gt.schritt;
+    }
+
+    // =========================================================================
+    // Kinder per Foto oder eingefügtem Text anlegen (Adapter für Klassenliste)
+    // =========================================================================
+    const PHOTO_COURSE_PLACEHOLDER = 'Neuer Kurs';
+    const TESSERACT_URL = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
+    let pendingPhotoCourseId = null;
+    let ocrWorker = null;
+    let ocrAbgebrochen = false;
+    let ocrFotoNr = 0;
+    let ocrFotoAnzahl = 0;
+
+    function resetClassImportUI() {
+      ['classTextPasteBox', 'classPhotoStatus', 'classImportHint'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.add('hidden');
+      });
+      const ta = document.getElementById('classTextPasteInput');
+      if (ta) ta.value = '';
+    }
+
+    function toggleClassTextPaste() {
+      const box = document.getElementById('classTextPasteBox');
+      box.classList.toggle('hidden');
+      if (!box.classList.contains('hidden')) document.getElementById('classTextPasteInput').focus();
+    }
+
+    function applyClassTextPaste() {
+      const ta = document.getElementById('classTextPasteInput');
+      uebernehmeErkannteNamen(Klassenliste.ausEingefuegtemText(ta.value));
+      ta.value = '';
+      document.getElementById('classTextPasteBox').classList.add('hidden');
+    }
+
+    function zeigeOcrStatus(text, fortschritt) {
+      document.getElementById('classPhotoStatus').classList.remove('hidden');
+      document.getElementById('classPhotoStatusText').textContent = text;
+      document.getElementById('classPhotoProgress').style.width = `${Math.round((fortschritt || 0) * 100)}%`;
+    }
+
+    function versteckeOcrStatus() {
+      document.getElementById('classPhotoStatus').classList.add('hidden');
+    }
+
+    function ladeSkript(url) {
+      return new Promise((resolve, reject) => {
+        const vorhanden = document.querySelector(`script[data-src="${url}"]`);
+        if (vorhanden && vorhanden.dataset.geladen === '1') return resolve();
+        const s = vorhanden || document.createElement('script');
+        s.dataset.src = url;
+        s.onload = () => { s.dataset.geladen = '1'; resolve(); };
+        s.onerror = () => { s.remove(); reject(new Error('Skript konnte nicht geladen werden: ' + url)); };
+        if (!vorhanden) { s.src = url; document.head.appendChild(s); }
+      });
+    }
+
+    /** Bild verkleinern, nach EXIF drehen, in Graustufen wandeln und den Kontrast strecken. */
+    async function bereiteFotoVor(file) {
+      let bild;
+      try {
+        bild = await createImageBitmap(file, { imageOrientation: 'from-image' });
+      } catch (e) {
+        bild = await createImageBitmap(file);
+      }
+      const max = 2400;
+      const faktor = Math.min(1, max / Math.max(bild.width, bild.height));
+      const cv = document.createElement('canvas');
+      cv.width = Math.round(bild.width * faktor);
+      cv.height = Math.round(bild.height * faktor);
+      const ctx = cv.getContext('2d', { willReadFrequently: true });
+      ctx.drawImage(bild, 0, 0, cv.width, cv.height);
+      const img = ctx.getImageData(0, 0, cv.width, cv.height);
+      const d = img.data;
+      const hist = new Uint32Array(256);
+      for (let i = 0; i < d.length; i += 4) {
+        const g = (0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]) | 0;
+        d[i] = g;
+        hist[g]++;
+      }
+      const pixel = d.length / 4;
+      let lo = 0, hi = 255, summe = 0;
+      for (let g = 0; g < 256; g++) { summe += hist[g]; if (summe > pixel * 0.02) { lo = g; break; } }
+      summe = 0;
+      for (let g = 255; g >= 0; g--) { summe += hist[g]; if (summe > pixel * 0.02) { hi = g; break; } }
+      const spanne = Math.max(1, hi - lo);
+      for (let i = 0; i < d.length; i += 4) {
+        const v = Math.max(0, Math.min(255, ((d[i] - lo) * 255) / spanne));
+        d[i] = d[i + 1] = d[i + 2] = v;
+      }
+      ctx.putImageData(img, 0, 0);
+      return cv;
+    }
+
+    async function holeOcrWorker() {
+      if (ocrWorker) return ocrWorker;
+      zeigeOcrStatus('Texterkennung wird geladen …', 0);
+      await ladeSkript(TESSERACT_URL);
+      ocrWorker = await Tesseract.createWorker('deu', 1, {
+        logger: m => {
+          if (ocrAbgebrochen) return;
+          if (m.status === 'recognizing text') zeigeOcrStatus(`Foto ${ocrFotoNr} von ${ocrFotoAnzahl} wird gelesen …`, m.progress);
+          else zeigeOcrStatus('Texterkennung wird vorbereitet … (beim ersten Mal dauert das etwas länger)', m.progress);
+        }
+      });
+      await ocrWorker.setParameters({ tessedit_pageseg_mode: '6', preserve_interword_spaces: '1' });
+      return ocrWorker;
+    }
+
+    async function handleClassPhotos(ev) {
+      const dateien = [...(ev.target.files || [])];
+      ev.target.value = '';
+      if (!dateien.length) return;
+      ocrAbgebrochen = false;
+      ocrFotoAnzahl = dateien.length;
+      document.getElementById('classImportHint').classList.add('hidden');
+      try {
+        const worker = await holeOcrWorker();
+        const zeilen = [];
+        for (let i = 0; i < dateien.length; i++) {
+          if (ocrAbgebrochen) return;
+          ocrFotoNr = i + 1;
+          zeigeOcrStatus(`Foto ${ocrFotoNr} von ${ocrFotoAnzahl} wird vorbereitet …`, 0);
+          const canvas = await bereiteFotoVor(dateien[i]);
+          const { data } = await worker.recognize(canvas);
+          zeilen.push(...Klassenliste.ausTesseract(data).zeilen);
+        }
+        if (ocrAbgebrochen) return;
+        uebernehmeErkannteNamen({ zeilen });
+      } catch (err) {
+        if (ocrAbgebrochen) return;
+        console.error(err);
+        zeigeImportHinweis(navigator.onLine
+          ? 'Die Texterkennung ist fehlgeschlagen. Bitte versuche es mit einem anderen Foto.'
+          : 'Die Texterkennung muss beim ersten Mal mit Internet geladen werden. Danach funktioniert sie auch offline.');
+      } finally {
+        if (!ocrAbgebrochen) versteckeOcrStatus();
+      }
+    }
+
+    function cancelClassPhotoRecognition() {
+      ocrAbgebrochen = true;
+      if (ocrWorker) {
+        ocrWorker.terminate();
+        ocrWorker = null;
+      }
+      versteckeOcrStatus();
+      showToast('Texterkennung abgebrochen');
+    }
+
+    function zeigeImportHinweis(text) {
+      const el = document.getElementById('classImportHint');
+      el.textContent = text;
+      el.classList.remove('hidden');
+    }
+
+    function uebernehmeErkannteNamen(erkannt) {
+      const course = getActiveCourse();
+      if (!course) return;
+      const zeilen = [...document.querySelectorAll('.student-input-row')];
+      const imDialog = zeilen.map(r => ({
+        vorname: r.querySelector('.row-first-name').value.trim(),
+        nachname: r.querySelector('.row-last-name').value.trim()
+      })).filter(x => x.vorname || x.nachname);
+      const vorhanden = course.students.map(s => ({ vorname: s.firstName || '', nachname: s.lastName || '' }));
+      const erg = Klassenliste.namenErkennen(erkannt, { vorhandeneKinder: [...vorhanden, ...imDialog] });
+
+      if (erg.hinweis) {
+        zeigeImportHinweis(erg.hinweis);
+        return;
+      }
+      // Leere Zeilen ersetzen, manuell befüllte Zeilen bleiben stehen
+      zeilen.forEach(r => {
+        const leer = [...r.querySelectorAll('input')].every(i => !i.value.trim());
+        if (leer) r.remove();
+      });
+      erg.kinder.forEach(k => addStudentInputRow(k.vorname, k.nachname, '', { importiert: true, unsicher: k.unsicher, grund: k.grund }));
+      if (!document.querySelector('.student-input-row')) addStudentInputRow();
+
+      const unsicher = erg.kinder.filter(k => k.unsicher).length;
+      const teile = [`${erg.kinder.length} Kind(er) erkannt`];
+      if (unsicher) teile.push(`${unsicher} bitte prüfen (gelb markiert)`);
+      if (erg.uebersprungen.length) teile.push(`${erg.uebersprungen.length} schon vorhanden und übersprungen`);
+      let text = teile.join(', ') + '. Bitte kurz kontrollieren und dann speichern.';
+      if (erg.kursVorschlag && pendingPhotoCourseId === course.id && course.name === PHOTO_COURSE_PLACEHOLDER) {
+        course.name = erg.kursVorschlag;
+        saveToDB();
+        renderAll();
+        text += ` Der Kurs heißt jetzt „${erg.kursVorschlag}“ – ergänze das Fach über das Stift-Symbol am Kurs.`;
+      }
+      pendingPhotoCourseId = null;
+      zeigeImportHinweis(text);
     }
 
   </script>

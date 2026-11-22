@@ -18,9 +18,13 @@ Dieses Dokument dient als zentrale Orientierung und Strukturkarte für KI-Agente
 
 ```text
 Lerntracker/
-├── index.html                  # Komplette Web-App (HTML-Struktur, Tailwind-Klassen, CSS & JS-Logik)
+├── index.html                  # Komplette Web-App (HTML-Struktur, Tailwind-Klassen, CSS, UI-Logik & Adapter)
+├── notenliste.js               # Logikmodul: Noten in Excel-Notenliste übertragen (ohne DOM, getestet)
+├── klassenliste.js             # Logikmodul: Namen aus Foto-/Texterkennung zerlegen (ohne DOM, getestet)
 ├── sw.js                       # Service Worker für PWA-Offline-Caching
 ├── README.md                   # Benutzerdokumentation & Installationsanleitung
+├── tests/                      # Tests für die Logikmodule: `node --test tests/` (keine Abhängigkeiten)
+├── docs/adr/                   # Architekturentscheidungen (u. a. 0001: Logikmodule neben index.html)
 └── .agents/
     └── rules/
         ├── versioning.md       # Vorgaben zu Versionserhöhung & Changelog-Datumsformaten
