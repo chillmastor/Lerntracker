@@ -477,5 +477,46 @@
     return out;
   }
 
-  return { namenErkennen, ausEingefuegtemText, ausTesseract, linienEntfernen };
+  // ---------------------------------------------------------------------------
+  // Lesebereich auf dem Foto (Koordinaten 0–1 relativ zum Bild)
+  // ---------------------------------------------------------------------------
+  const BEREICH_MIN = 0.05;
+  const klemme = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+  /**
+   * Rahmen verschieben („innen“) oder an Ecke/Kante ziehen („n“, „s“, „w“, „e“, „nw“, „ne“, „sw“, „se“).
+   * dx/dy sind die Verschiebung seit Beginn des Ziehens; der Rahmen bleibt im Bild und mindestens 5 % groß.
+   */
+  function bereichAnpassen(bereich, griff, dx, dy) {
+    const r = bereich;
+    if (griff === 'innen') {
+      return { x: klemme(r.x + dx, 0, 1 - r.b), y: klemme(r.y + dy, 0, 1 - r.h), b: r.b, h: r.h };
+    }
+    let links = r.x, oben = r.y, rechts = r.x + r.b, unten = r.y + r.h;
+    if (griff.includes('w')) links = klemme(links + dx, 0, rechts - BEREICH_MIN);
+    if (griff.includes('e')) rechts = klemme(rechts + dx, links + BEREICH_MIN, 1);
+    if (griff.includes('n')) oben = klemme(oben + dy, 0, unten - BEREICH_MIN);
+    if (griff.includes('s')) unten = klemme(unten + dy, oben + BEREICH_MIN, 1);
+    return { x: links, y: oben, b: rechts - links, h: unten - oben };
+  }
+
+  /** Neuen Rahmen von einem Startpunkt zum aktuellen Punkt aufziehen. */
+  function bereichAufziehen(start, punkt) {
+    const x1 = klemme(start.x, 0, 1), y1 = klemme(start.y, 0, 1);
+    const x2 = klemme(punkt.x, 0, 1), y2 = klemme(punkt.y, 0, 1);
+    return { x: Math.min(x1, x2), y: Math.min(y1, y2), b: Math.abs(x2 - x1), h: Math.abs(y2 - y1) };
+  }
+
+  /** Rahmen in Bildpixel umrechnen; null heißt „ganzes Bild lesen“. */
+  function bereichInPixeln(bereich, breite, hoehe) {
+    if (!bereich) return null;
+    const x = Math.round(klemme(bereich.x, 0, 1) * breite);
+    const y = Math.round(klemme(bereich.y, 0, 1) * hoehe);
+    const b = Math.max(1, Math.min(breite - x, Math.round(bereich.b * breite)));
+    const h = Math.max(1, Math.min(hoehe - y, Math.round(bereich.h * hoehe)));
+    if (x === 0 && y === 0 && b === breite && h === hoehe) return null;
+    return { x, y, b, h };
+  }
+
+  return { namenErkennen, ausEingefuegtemText, ausTesseract, linienEntfernen, bereichAnpassen, bereichAufziehen, bereichInPixeln };
 });

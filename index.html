@@ -128,6 +128,32 @@
         display: none !important;
       }
     }
+
+    /* Lesebereich auf dem Foto: große, fingerfreundliche Griffe */
+    .crop-griff {
+      position: absolute;
+      width: 36px;
+      height: 36px;
+      transform: translate(-50%, -50%);
+      touch-action: none;
+    }
+    .crop-griff::after {
+      content: '';
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 16px;
+      height: 16px;
+      transform: translate(-50%, -50%);
+      background: #fff;
+      border: 2px solid #10b981;
+      border-radius: 9999px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+    }
+    .crop-griff.crop-kante::after {
+      width: 12px;
+      height: 12px;
+    }
   </style>
 </head>
 <body class="bg-slate-50 text-slate-800 flex flex-col h-full overflow-hidden font-sans select-none" id="appBody" style="height: 100vh; height: 100dvh;">
@@ -867,6 +893,39 @@
     </div>
   </div>
 
+  <!-- Modal: Lesebereich auf dem Foto wählen -->
+  <div id="photoCropModal" class="fixed inset-0 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-3 z-50 hidden">
+    <div class="bg-white w-full max-w-3xl rounded-2xl p-3 shadow-2xl flex flex-col gap-2 max-h-[95vh]">
+      <div class="flex justify-between items-start gap-2">
+        <div>
+          <h3 id="photoCropTitle" class="font-bold text-slate-900 text-sm">Bereich wählen</h3>
+          <p class="text-[11px] text-slate-500">Zieh den Rahmen um die Namen. Rahmen verschieben, an Ecken und Kanten ziehen oder außerhalb neu aufziehen.</p>
+        </div>
+        <button type="button" onclick="beendeBereichswahl('abbruch')" class="text-slate-400 hover:text-slate-600 p-1"><i class="fa-solid fa-xmark text-base"></i></button>
+      </div>
+      <div class="flex-1 min-h-0 flex items-center justify-center bg-slate-100 rounded-xl p-2 overflow-hidden">
+        <div id="photoCropStage" class="relative inline-block select-none overflow-hidden" style="touch-action:none">
+          <img id="photoCropImage" alt="Foto der Klassenliste" draggable="false" class="block max-w-full object-contain pointer-events-none" style="max-height:min(68vh, 900px)">
+          <div id="photoCropRect" class="absolute border-2 border-emerald-400 cursor-move" style="box-shadow:0 0 0 9999px rgba(15,23,42,0.55)" data-griff="innen">
+            <div class="crop-griff" data-griff="nw" style="left:0;top:0;cursor:nwse-resize"></div>
+            <div class="crop-griff" data-griff="ne" style="left:100%;top:0;cursor:nesw-resize"></div>
+            <div class="crop-griff" data-griff="sw" style="left:0;top:100%;cursor:nesw-resize"></div>
+            <div class="crop-griff" data-griff="se" style="left:100%;top:100%;cursor:nwse-resize"></div>
+            <div class="crop-griff crop-kante" data-griff="n" style="left:50%;top:0;cursor:ns-resize"></div>
+            <div class="crop-griff crop-kante" data-griff="s" style="left:50%;top:100%;cursor:ns-resize"></div>
+            <div class="crop-griff crop-kante" data-griff="w" style="left:0;top:50%;cursor:ew-resize"></div>
+            <div class="crop-griff crop-kante" data-griff="e" style="left:100%;top:50%;cursor:ew-resize"></div>
+          </div>
+        </div>
+      </div>
+      <div class="flex flex-wrap justify-end gap-1.5">
+        <button type="button" onclick="beendeBereichswahl('abbruch')" class="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer">Abbrechen</button>
+        <button type="button" onclick="beendeBereichswahl('ganz')" class="px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-semibold cursor-pointer">Ganzes Foto lesen</button>
+        <button type="button" onclick="beendeBereichswahl('bereich')" class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold cursor-pointer flex items-center gap-1.5"><i class="fa-solid fa-crop-simple text-[11px]"></i> Bereich lesen</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal: Noten in Notenliste übertragen -->
   <div id="gradeTransferModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-40 hidden">
     <div class="bg-white w-full max-w-2xl rounded-2xl p-4 shadow-2xl border border-slate-100 flex flex-col gap-3 max-h-[90vh]">
@@ -908,7 +967,7 @@
           <p class="font-semibold text-slate-800">Noten in die Notenliste übertragen & Kinder per Foto anlegen</p>
           <ul class="list-disc list-inside text-slate-600 space-y-0.5 leading-relaxed text-[11px]">
             <li><strong>Noten in Notenliste übertragen:</strong> Überträgt die Noten eines Kurses direkt in die Excel-Notenliste des Klassenlehrers. Tab und Fachspalte werden vorgeschlagen und von dir bestätigt, Tippfehler in Namen werden erkannt und nachgefragt, bereits belegte Zellen nie ungefragt überschrieben. Formatierung und Formeln der Liste bleiben erhalten.</li>
-            <li><strong>Kinder per Foto anlegen:</strong> Klassenliste fotografieren, und die Namen landen als vorausgefüllte Zeilen im Dialog „Kinder hinzufügen“. Unsichere Zeilen sind gelb markiert. Die Texterkennung läuft vollständig auf dem Gerät und funktioniert nach dem ersten Mal auch offline. Listen mit Kästchen oder Tabellenlinien werden vor dem Lesen von den Linien befreit.</li>
+            <li><strong>Kinder per Foto anlegen:</strong> Klassenliste fotografieren, und die Namen landen als vorausgefüllte Zeilen im Dialog „Kinder hinzufügen“. Unsichere Zeilen sind gelb markiert. Die Texterkennung läuft vollständig auf dem Gerät und funktioniert nach dem ersten Mal auch offline. Nach dem Foto lässt sich der Bereich mit den Namen per Rahmen auswählen. Listen mit Kästchen oder Tabellenlinien werden vor dem Lesen von den Linien befreit.</li>
             <li><strong>Text einfügen:</strong> Namenslisten aus E-Mails, Excel oder der iPad-Funktion „Live Text“ einfügen und automatisch in Vor- und Nachnamen zerlegen lassen.</li>
           </ul>
         </div>
@@ -5809,20 +5868,24 @@
     }
 
     /** Bild verkleinern, nach EXIF drehen, in Graustufen wandeln und den Kontrast strecken. */
-    async function bereiteFotoVor(file) {
+    async function bereiteFotoVor(file, bereich) {
       let bild;
       try {
         bild = await createImageBitmap(file, { imageOrientation: 'from-image' });
       } catch (e) {
         bild = await createImageBitmap(file);
       }
+      // Nur den gewählten Ausschnitt lesen; kleine Ausschnitte werden etwas vergrößert (bessere Erkennung)
+      const aus = Klassenliste.bereichInPixeln(bereich, bild.width, bild.height) || { x: 0, y: 0, b: bild.width, h: bild.height };
       const max = 2400;
-      const faktor = Math.min(1, max / Math.max(bild.width, bild.height));
+      const faktor = Math.min(bereich ? 2 : 1, max / Math.max(aus.b, aus.h));
       const cv = document.createElement('canvas');
-      cv.width = Math.round(bild.width * faktor);
-      cv.height = Math.round(bild.height * faktor);
+      cv.width = Math.max(1, Math.round(aus.b * faktor));
+      cv.height = Math.max(1, Math.round(aus.h * faktor));
       const ctx = cv.getContext('2d', { willReadFrequently: true });
-      ctx.drawImage(bild, 0, 0, cv.width, cv.height);
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(bild, aus.x, aus.y, aus.b, aus.h, 0, 0, cv.width, cv.height);
+      if (bild.close) bild.close();
       const img = ctx.getImageData(0, 0, cv.width, cv.height);
       const d = img.data;
       const hist = new Uint32Array(256);
@@ -5873,13 +5936,22 @@
       ocrFotoAnzahl = dateien.length;
       document.getElementById('classImportHint').classList.add('hidden');
       try {
-        const worker = await holeOcrWorker();
+        // Texterkennung schon laden, während die Lehrkraft den Bereich wählt
+        const workerLaden = holeOcrWorker();
+        workerLaden.catch(() => {});
         const zeilen = [];
         for (let i = 0; i < dateien.length; i++) {
           if (ocrAbgebrochen) return;
           ocrFotoNr = i + 1;
+          const wahl = await waehleBereich(dateien[i], ocrFotoNr, ocrFotoAnzahl);
+          if (wahl === 'abbruch') {
+            cancelClassPhotoRecognition();
+            return;
+          }
+          const worker = await workerLaden;
+          if (ocrAbgebrochen) return;
           zeigeOcrStatus(`Foto ${ocrFotoNr} von ${ocrFotoAnzahl} wird vorbereitet …`, 0);
-          const canvas = await bereiteFotoVor(dateien[i]);
+          const canvas = await bereiteFotoVor(dateien[i], wahl);
           const { data } = await worker.recognize(canvas);
           zeilen.push(...Klassenliste.ausTesseract(data).zeilen);
         }
@@ -5895,6 +5967,89 @@
         if (!ocrAbgebrochen) versteckeOcrStatus();
       }
     }
+
+    // ---- Lesebereich auf dem Foto wählen --------------------------------------
+    let cropZustand = null; // { bereich, fertig, url, ziehen }
+
+    /** Zeigt das Foto mit Rahmen. Ergebnis: Bereich {x,y,b,h} (0–1), null = ganzes Foto, 'abbruch'. */
+    function waehleBereich(datei, nr, anzahl) {
+      return new Promise(resolve => {
+        const url = URL.createObjectURL(datei);
+        cropZustand = { bereich: { x: 0.04, y: 0.04, b: 0.92, h: 0.92 }, fertig: resolve, url, ziehen: null };
+        document.getElementById('photoCropTitle').textContent = anzahl > 1 ? `Bereich wählen (Foto ${nr} von ${anzahl})` : 'Bereich wählen';
+        const img = document.getElementById('photoCropImage');
+        img.onerror = () => beendeBereichswahl('ganz');
+        img.src = url;
+        zeichneCropRahmen();
+        document.getElementById('photoCropModal').classList.remove('hidden');
+      });
+    }
+
+    function beendeBereichswahl(art) {
+      if (!cropZustand) return;
+      const { fertig, url, bereich } = cropZustand;
+      cropZustand = null;
+      document.getElementById('photoCropModal').classList.add('hidden');
+      const img = document.getElementById('photoCropImage');
+      img.onerror = null;
+      img.removeAttribute('src');
+      URL.revokeObjectURL(url);
+      fertig(art === 'abbruch' ? 'abbruch' : art === 'bereich' ? { ...bereich } : null);
+    }
+
+    function zeichneCropRahmen() {
+      if (!cropZustand) return;
+      const r = cropZustand.bereich;
+      const el = document.getElementById('photoCropRect');
+      el.style.left = `${r.x * 100}%`;
+      el.style.top = `${r.y * 100}%`;
+      el.style.width = `${r.b * 100}%`;
+      el.style.height = `${r.h * 100}%`;
+    }
+
+    function cropPunkt(ev) {
+      const box = document.getElementById('photoCropImage').getBoundingClientRect();
+      return { x: (ev.clientX - box.left) / Math.max(1, box.width), y: (ev.clientY - box.top) / Math.max(1, box.height) };
+    }
+
+    (function richteCropEin() {
+      const buehne = document.getElementById('photoCropStage');
+      if (!buehne) return;
+      buehne.addEventListener('pointerdown', ev => {
+        if (!cropZustand) return;
+        ev.preventDefault();
+        const ziel = ev.target.closest('[data-griff]');
+        const start = cropPunkt(ev);
+        cropZustand.ziehen = { griff: ziel ? ziel.dataset.griff : 'neu', start, bereich: { ...cropZustand.bereich }, id: ev.pointerId };
+        try { buehne.setPointerCapture(ev.pointerId); } catch (e) {}
+      });
+      buehne.addEventListener('pointermove', ev => {
+        const z = cropZustand && cropZustand.ziehen;
+        if (!z || z.id !== ev.pointerId) return;
+        ev.preventDefault();
+        const p = cropPunkt(ev);
+        cropZustand.bereich = z.griff === 'neu'
+          ? Klassenliste.bereichAufziehen(z.start, p)
+          : Klassenliste.bereichAnpassen(z.bereich, z.griff, p.x - z.start.x, p.y - z.start.y);
+        zeichneCropRahmen();
+      });
+      const loslassen = ev => {
+        const z = cropZustand && cropZustand.ziehen;
+        if (!z || z.id !== ev.pointerId) return;
+        cropZustand.ziehen = null;
+        // Nur angetippt statt aufgezogen: alten Rahmen behalten
+        const r = cropZustand.bereich;
+        if (z.griff === 'neu' && (r.b < 0.03 || r.h < 0.03)) cropZustand.bereich = z.bereich;
+        zeichneCropRahmen();
+      };
+      buehne.addEventListener('pointerup', loslassen);
+      buehne.addEventListener('pointercancel', loslassen);
+      document.addEventListener('keydown', ev => {
+        if (!cropZustand) return;
+        if (ev.key === 'Escape') { ev.stopPropagation(); beendeBereichswahl('abbruch'); }
+        else if (ev.key === 'Enter') { ev.preventDefault(); beendeBereichswahl('bereich'); }
+      }, true);
+    })();
 
     function cancelClassPhotoRecognition() {
       ocrAbgebrochen = true;

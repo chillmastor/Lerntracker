@@ -200,3 +200,33 @@ test('Kästchen-Liste: Adresse, Druckdatum und Kästchenreste werden nicht zu Ki
   assert.deepEqual(namen(erg), ['Al Masri|Tarek', 'Becker|Mia-Sophie', 'Celik|Emre Can']);
   assert.equal(erg.kursVorschlag, '05b');
 });
+
+// --- Lesebereich auf dem Foto wählen (Koordinaten 0–1 relativ zum Bild) -----------------------
+const nah = (a, b) => Object.keys(b).forEach(k => assert.ok(Math.abs(a[k] - b[k]) < 1e-9, `${k}: ${a[k]} ≠ ${b[k]}`));
+
+test('bereichAnpassen verschiebt den Rahmen, ohne das Bild zu verlassen', () => {
+  const r = { x: 0.2, y: 0.2, b: 0.5, h: 0.5 };
+  nah(K.bereichAnpassen(r, 'innen', 0.1, -0.05), { x: 0.3, y: 0.15, b: 0.5, h: 0.5 });
+  nah(K.bereichAnpassen(r, 'innen', 0.9, 0.9), { x: 0.5, y: 0.5, b: 0.5, h: 0.5 });
+  nah(K.bereichAnpassen(r, 'innen', -1, -1), { x: 0, y: 0, b: 0.5, h: 0.5 });
+});
+
+test('bereichAnpassen zieht Ecken und Kanten, mit Mindestgröße und Bildrand', () => {
+  const r = { x: 0.2, y: 0.2, b: 0.5, h: 0.5 };
+  nah(K.bereichAnpassen(r, 'se', 0.1, 0.1), { x: 0.2, y: 0.2, b: 0.6, h: 0.6 });
+  nah(K.bereichAnpassen(r, 'nw', -0.1, 0.1), { x: 0.1, y: 0.3, b: 0.6, h: 0.4 });
+  nah(K.bereichAnpassen(r, 'e', 0.5, 0.3), { x: 0.2, y: 0.2, b: 0.8, h: 0.5 });   // nur bis zum rechten Rand
+  nah(K.bereichAnpassen(r, 'n', 0, 0.9), { x: 0.2, y: 0.65, b: 0.5, h: 0.05 });   // Mindestgröße 5 %
+  nah(K.bereichAnpassen(r, 'w', -0.5, 0), { x: 0, y: 0.2, b: 0.7, h: 0.5 });
+});
+
+test('bereichAufziehen baut einen Rahmen aus zwei Punkten, egal in welche Richtung gezogen wird', () => {
+  nah(K.bereichAufziehen({ x: 0.6, y: 0.7 }, { x: 0.1, y: 0.2 }), { x: 0.1, y: 0.2, b: 0.5, h: 0.5 });
+  nah(K.bereichAufziehen({ x: 0.5, y: 0.5 }, { x: 1.4, y: -0.2 }), { x: 0.5, y: 0, b: 0.5, h: 0.5 });
+});
+
+test('bereichInPixeln rechnet auf ganze Bildpixel um und meldet „ganzes Bild“ als null', () => {
+  assert.deepEqual(K.bereichInPixeln({ x: 0.1, y: 0.25, b: 0.5, h: 0.5 }, 1000, 800), { x: 100, y: 200, b: 500, h: 400 });
+  assert.equal(K.bereichInPixeln(null, 1000, 800), null);
+  assert.equal(K.bereichInPixeln({ x: 0, y: 0, b: 1, h: 1 }, 1000, 800), null);
+});
