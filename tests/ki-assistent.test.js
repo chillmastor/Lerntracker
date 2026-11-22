@@ -294,3 +294,26 @@ test('Alte Zellen mit Kürzel statt Status-ID („2“, „nb“) werden wie in 
   assert.deepEqual(alleTexte(plan), ['6c Mathe: Ömer Yıldız · Klassenarbeit 1: Nicht begonnen → In Bearbeitung']);
   assert.equal(plan.aenderungen[0].eintraege[0].ueberschreibt, false);
 });
+
+test('Prompt leitet an: Code-Block zum Kopieren, Anleitung zum Einfügen, Begrüßung mit Beispielen aus den Daten', () => {
+  const p = A.promptErstellen(daten(), { datum: '22.11.2026' });
+  for (const t of ['Code-Block', 'Kopieren-Knopf', 'Antwort der KI einfügen', 'Änderungen prüfen', 'Rückgängig', 'Wer steht in der [Kurs] auf Aufsteiger?', 'Beispiele aus meinen echten Daten', '```text']) {
+    assert.ok(p.includes(t), `fehlt: ${t}`);
+  }
+  assert.ok(!p.includes('„Bereit.“'));
+});
+
+test('Antwort im Stil des Prompts (Code-Block „text“ und Anleitung danach) wird sauber gelesen', () => {
+  const antwort = [
+    'Damit stelle ich Lina auf Aufsteiger.',
+    '```text',
+    '### LERNTRACKER-ÄNDERUNGEN ###',
+    'NIVEAU; 6c Mathe; Bauer; Lina; Aufsteiger',
+    '### ENDE ###',
+    '```',
+    'So übernimmst du die Änderungen: Kopiere den Block oben und füge ihn in der App ein.'
+  ].join('\n');
+  const plan = A.planen(daten(), antwort);
+  assert.deepEqual(alleTexte(plan), ['6c Mathe: Lina Bauer: Niveau Basis → Aufsteiger']);
+  assert.equal(plan.nichtVerstanden.length, 0);
+});

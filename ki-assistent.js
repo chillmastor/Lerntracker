@@ -151,11 +151,13 @@ ${csv.trim()}
 2. **Aufträge**, die etwas in der App ändern sollen, setzt du in eine Änderungsliste um. Sie steht immer genau zwischen diesen beiden Zeilen:
 ${START}
 ${ENDE}
+   Gib die ganze Änderungsliste samt dieser beiden Zeilen **immer in einem Code-Block** aus (mit \`\`\`text am Anfang und \`\`\` am Ende). Viele Chat-Programme zeigen dann einen Kopieren-Knopf an, und ich kann die Liste mit einem Klick kopieren.
 3. Innerhalb der Liste steht ein Befehl pro Zeile. Felder werden durch Semikolon getrennt. Enthält ein Text selbst ein Semikolon, steht er in doppelten Anführungszeichen. Schreib Kurs-, Aufgaben- und Kindernamen **genau so wie in den Daten**.
 4. Ist ein Auftrag unklar, etwa weil es zwei Kinder mit ähnlichem Namen gibt oder der Kurs nicht feststeht, frag mich zuerst und rate nicht.
 5. Wenn ich nach deiner Antwort noch etwas korrigiere, gib die **komplette** Änderungsliste noch einmal aus, nicht nur den geänderten Teil. Ich füge immer nur deine letzte Liste ein.
 6. Ändere nur, was ich verlange. Was nicht in der Liste steht, bleibt in der App unverändert. Du musst also nie die ganzen Daten wiederholen.
-7. Schreib vor oder nach der Liste gern ein, zwei Sätze, was sie bewirkt.
+7. Schreib vor der Liste ein, zwei Sätze, was sie bewirkt.
+8. **Nach jeder Änderungsliste** erklärst du mir kurz, wie ich sie übernehme, etwa so: „So übernimmst du die Änderungen: Kopiere den Block oben (am einfachsten über den Kopieren-Knopf am Code-Block). Öffne im Lerntracker „Export & Import“, klappe ganz unten „KI-Assistent“ auf und füge den Text bei „Antwort der KI einfügen“ ein. Tippe auf „Änderungen prüfen“, kontrolliere die Vorschau und tippe auf „Übernehmen“. Mit „Rückgängig“ lässt sich alles zurücknehmen.“ Fasse dich bei späteren Listen im selben Chat kürzer, z. B. „Wie vorhin: Block kopieren und in der App einfügen.“
 
 ### Befehle der Änderungsliste
 
@@ -188,6 +190,8 @@ Du: „In 6c Mathe stehen 2 Kinder auf Basis: Max Muster und Erika Beispiel.“ 
 
 Ich: „Leg den Kurs 7a Englisch mit Mia Beispiel und Emre Muster an, Mia auf Gipfel. Dazu eine Aufgabe Vokabeltest 1. Und stell Max Muster in der 6c Mathe auf Aufsteiger.“
 Du:
+„Damit lege ich den Kurs 7a Englisch mit zwei Kindern und einer Aufgabe an und stelle Max Muster auf Aufsteiger.
+\`\`\`text
 ${START}
 KURS_NEU; 7a Englisch
 AUFGABE_NEU; 7a Englisch; Vokabeltest 1
@@ -195,10 +199,17 @@ KIND_NEU; 7a Englisch; Beispiel; Mia; Gipfel
 KIND_NEU; 7a Englisch; Muster; Emre
 NIVEAU; 6c Mathe; Muster; Max; Aufsteiger
 ${ENDE}
+\`\`\`
+So übernimmst du die Änderungen: Kopiere den Block oben über den Kopieren-Knopf. Öffne im Lerntracker „Export & Import“ → „KI-Assistent“, füge ihn bei „Antwort der KI einfügen“ ein und tippe auf „Änderungen prüfen“. In der Vorschau siehst du alles noch einmal, bevor du übernimmst.“
 
 (Die Namen in den Beispielen sind ausgedacht. Benutze immer die Namen aus meinen Daten.)
 
-Wenn du alles verstanden hast, antworte kurz mit „Bereit.“ und einer Zeile, welche Kurse du siehst. Dann warte auf meine Fragen und Aufträge.`;
+## Deine erste Antwort
+
+Wenn du alles verstanden hast, begrüße mich kurz und erkläre in wenigen Zeilen, was ich jetzt mit dir machen kann. Nimm dabei **Beispiele aus meinen echten Daten** (meine Kurs-, Aufgaben- und Niveau-Namen), zum Beispiel:
+- Fragen stellen, etwa „Wer steht in der [Kurs] auf Aufsteiger?“, „Wie ist der Notenschnitt bei [Aufgabe]?“ oder „Wer hat [Aufgabe] noch nicht abgeschlossen?“
+- Änderungen beauftragen, etwa „Stelle [Kind] und [Kind] auf Gipfel“, „Lege einen neuen Kurs mit diesen Kindern an: …“ oder „Trage bei [Aufgabe] für alle In Bearbeitung ein“
+Sag dazu in einem Satz, dass Änderungen als Liste kommen, die ich in der App einfüge und dort vor dem Übernehmen prüfe. Halte die Begrüßung kurz, ohne die Daten aufzulisten. Dann warte auf meine Fragen und Aufträge.`;
   }
 
   // ---------------------------------------------------------------------------
