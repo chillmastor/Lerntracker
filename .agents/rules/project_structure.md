@@ -18,9 +18,14 @@ Dieses Dokument dient als zentrale Orientierung und Strukturkarte für KI-Agente
 
 ```text
 Lerntracker/
-├── index.html                  # Komplette Web-App (HTML-Struktur, Tailwind-Klassen, CSS & JS-Logik)
+├── index.html                  # Komplette Web-App (HTML-Struktur, Tailwind-Klassen, CSS, UI-Logik & Adapter)
+├── notenliste.js               # Logikmodul: Noten in Excel-Notenliste übertragen (ohne DOM, getestet)
+├── klassenliste.js             # Logikmodul: Namen aus Foto-/Texterkennung zerlegen (ohne DOM, getestet)
+├── ki-assistent.js             # Logikmodul: Prompt für Chat-KIs erzeugen, Änderungsliste der KI prüfen & anwenden (ohne DOM, getestet)
 ├── sw.js                       # Service Worker für PWA-Offline-Caching
 ├── README.md                   # Benutzerdokumentation & Installationsanleitung
+├── tests/                      # Tests für die Logikmodule: `node --test tests/` (keine Abhängigkeiten)
+├── docs/adr/                   # Architekturentscheidungen (u. a. 0001: Logikmodule neben index.html)
 └── .agents/
     └── rules/
         ├── versioning.md       # Vorgaben zu Versionserhöhung & Changelog-Datumsformaten
@@ -134,6 +139,8 @@ Der gesamte Anwendungszustand wird in der globalen JavaScript-Variable `appData`
 * `exportExcel()`: Erzeugt `.xlsx` via SheetJS.
 * `exportPDF()`: Erzeugt druckfertiges Querformat-PDF via `jsPDF` und `AutoTable`.
 * `exportCSV()` & `exportAllCoursesCSV()`: Exportiert einzelnen Kurs oder Komplett-Backup aller Kurse mit UTF-8 BOM.
+* `KiAssistent.sicherungsCsv(...)`: Gemeinsames CSV-Format für Einzel-/Komplett-Export und KI-Prompt.
+* KI-Assistent (`kiPromptKopieren()`, `kiAntwortPruefen()`, `kiUebernehmen()`): Prompt mit allen Daten für eine beliebige Chat-KI; deren Änderungsliste (`### LERNTRACKER-ÄNDERUNGEN ###`) wird mit Vorschau und Rückfragen übernommen (siehe `.scratch/ki-assistent/spec.md`).
 * `importCSVFile(event)` / `parseCSVTable(...)`: Intelligenter CSV-Parser mit automatischer Trennzeichen-Erkennung (`;`, `,`, `\t`), flexibler Spaltenerkennung (Vorname, Nachname, Niveau, Fehltage, Notizen) und Multi-Kurs-Unterstützung.
 
 ---

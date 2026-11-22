@@ -5,7 +5,11 @@ const CACHE_NAME = 'lerntracker-pwa-v-auto';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
+  './notenliste.js',
+  './klassenliste.js',
+  './ki-assistent.js',
   'https://cdn.tailwindcss.com',
+  'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
   'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/webfonts/fa-solid-900.woff2',
   'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js',
@@ -40,6 +44,27 @@ self.addEventListener('fetch', (event) => {
   // STRATEGIE: Network-First!
   // Wenn Internet da ist: IMMER die neueste Version von Vercel laden & Cache direkt erneuern.
   // Wenn offline: Sofort die Version aus dem lokalen Cache anzeigen.
+  const url = new URL(event.request.url);
+  const eigeneDatei = url.origin === self.location.origin;
+  if (event.request.method !== 'GET') return;
+
+  // Eigene Logikmodule (notenliste.js, klassenliste.js, ki-assistent.js) wie die App selbst: Network-First,
+  // damit Updates sofort ankommen und offline trotzdem die letzte Version läuft.
+  if (eigeneDatei && /\.js$/.test(url.pathname) && !url.pathname.endsWith('/sw.js')) {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const clone = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          }
+          return networkResponse;
+        })
+        .catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
   if (event.request.mode === 'navigate' || event.request.destination === 'document') {
     event.respondWith(
       fetch(event.request)
@@ -65,7 +90,10 @@ self.addEventListener('fetch', (event) => {
     caches.match(event.request).then((cachedResponse) => {
       if (cachedResponse) return cachedResponse;
       return fetch(event.request).then((networkResponse) => {
-        if (networkResponse && networkResponse.status === 200) {
+        // Texterkennung (Tesseract-Worker, WASM-Kern, Sprachdaten) wird beim ersten Gebrauch
+        // geladen und dauerhaft gecacht – auch wenn das Skript aus dem Worker "opaque" geladen wird.
+        const texterkennung = /tesseract|tessdata/i.test(url.href);
+        if (networkResponse && (networkResponse.status === 200 || (texterkennung && networkResponse.type === 'opaque'))) {
           const clone = networkResponse.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
         }

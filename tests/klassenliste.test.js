@@ -1,0 +1,232 @@
+// Tests für das Modul „Klassenlisten-Erkennung“. Alle Namen sind erfunden.
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const K = require('../klassenliste.js');
+
+/**
+ * Baut OCR-Zeilen aus einer „Druckvorlage“: Jede Zeile ist ein String, Spalten beginnen dort,
+ * wo sie im String stehen (1 Zeichen = 10 px). So entstehen realistische Wortpositionen.
+ */
+function ocr(zeilen, sicherheiten = {}) {
+  return {
+    zeilen: zeilen.map(z => {
+      const woerter = [];
+      const re = /\S+/g;
+      let m;
+      while ((m = re.exec(z))) {
+        woerter.push({ text: m[0], x0: m.index * 10, x1: (m.index + m[0].length) * 10, sicherheit: sicherheiten[m[0]] ?? 95 });
+      }
+      return { woerter };
+    })
+  };
+}
+const namen = erg => erg.kinder.map(k => `${k.nachname}|${k.vorname}`);
+
+test('Tabelle mit Kopf „Name | Vorname“ und mehrteiligen Namen wird über Spaltenpositionen getrennt', () => {
+  const erg = K.namenErkennen(ocr([
+    'Katholische Hauptschule Musterstadt',
+    'Klassenliste 5b                          Schuljahr 2026/27',
+    'Nr.  Name              Vorname          Geb.-Datum   m/w',
+    '1.   Al Masri          Tarek            03.04.2015   m',
+    '2.   Arkan Kamel       Rana             12.11.2014   w',
+    '3.   Becker            Mia-Sophie       01.02.2015   w',
+    '4.   Celik             Emre Can         22.08.2014   m',
+    'Seite 1 von 1'
+  ]));
+  assert.deepEqual(namen(erg), ['Al Masri|Tarek', 'Arkan Kamel|Rana', 'Becker|Mia-Sophie', 'Celik|Emre Can']);
+  assert.ok(erg.kinder.every(k => !k.unsicher));
+  assert.equal(erg.kursVorschlag, '5b');
+});
+
+test('Format „Nachname, Vorname“ wird am Komma getrennt', () => {
+  const erg = K.namenErkennen(K.ausEingefuegtemText('Albrecht, Jonas\nvan der Berg, Lotta Marie\nYıldız, Ömer'));
+  assert.deepEqual(namen(erg), ['Albrecht|Jonas', 'van der Berg|Lotta Marie', 'Yıldız|Ömer']);
+  assert.ok(erg.kinder.every(k => !k.unsicher));
+});
+
+test('Liste „Vorname Nachname“ ohne Kopf wird an der Sortierung nach Nachnamen erkannt', () => {
+  const erg = K.namenErkennen(K.ausEingefuegtemText('Tom Adler\nLina Bauer\nAnna Christ\nBen Dorn\nMia Engel'));
+  assert.equal(erg.reihenfolge, 'vorname-zuerst');
+  assert.deepEqual(namen(erg), ['Adler|Tom', 'Bauer|Lina', 'Christ|Anna', 'Dorn|Ben', 'Engel|Mia']);
+});
+
+test('Liste „Nachname Vorname“ ohne Kopf ist Standard', () => {
+  const erg = K.namenErkennen(K.ausEingefuegtemText('Adler Tom\nBauer Lina\nChrist Anna'));
+  assert.equal(erg.reihenfolge, 'nachname-zuerst');
+  assert.deepEqual(namen(erg), ['Adler|Tom', 'Bauer|Lina', 'Christ|Anna']);
+});
+
+test('Mehrteilige Namen ohne Positionen werden als unsicher markiert statt still falsch geraten', () => {
+  const erg = K.namenErkennen(K.ausEingefuegtemText('Adler Tom\nBauer Lina\nArkan Kamel Rana'));
+  const rana = erg.kinder.find(k => k.vorname.includes('Rana') || k.nachname.includes('Rana'));
+  assert.equal(rana.unsicher, true);
+  assert.match(rana.grund, /unklar/);
+  assert.equal(erg.kinder.find(k => k.nachname === 'Adler').unsicher, false);
+});
+
+test('Tabs aus kopiertem Excel-Text gelten als Spaltengrenze', () => {
+  const erg = K.namenErkennen(K.ausEingefuegtemText('Name\tVorname\nArkan Kamel\tRana\nAl Masri\tTarek Ali'));
+  assert.deepEqual(namen(erg), ['Arkan Kamel|Rana', 'Al Masri|Tarek Ali']);
+  assert.ok(erg.kinder.every(k => !k.unsicher));
+});
+
+test('Tabs gelten auch bei gemischter Liste mit Nummerierung, Kopf und Klassenzeile als Spaltengrenze', () => {
+  const erg = K.namenErkennen(K.ausEingefuegtemText('Klassenliste 6c\nName\tVorname\n1. Albrecht\tJonas\nArkan Kamel\tRana\nKARABEKTAŞOĞLU\tÖmer\nvan der Berg\tLotta Marie\nSchulz\t03.04.2015'));
+  assert.deepEqual(namen(erg), ['Albrecht|Jonas', 'Arkan Kamel|Rana', 'Karabektaşoğlu|Ömer', 'van der Berg|Lotta Marie', 'Schulz|']);
+  assert.deepEqual(erg.kinder.map(k => k.unsicher), [false, false, false, false, true]);
+  assert.equal(erg.kursVorschlag, '6c');
+});
+
+test('Dritte Textspalte nach einem Tab landet nicht im Vornamen', () => {
+  const erg = K.namenErkennen(K.ausEingefuegtemText('Adler\tTom\tkath\nBauer\tLina Marie\tSport-AG'));
+  assert.deepEqual(namen(erg), ['Adler|Tom', 'Bauer|Lina Marie']);
+});
+
+test('OCR-Spalten mit großem Abstand werden auch ohne Kopfzeile erkannt', () => {
+  const erg = K.namenErkennen(ocr([
+    'Al Masri            Tarek',
+    'Becker              Mia Sophie',
+    'Celik               Emre',
+    'van der Berg        Lotta'
+  ]));
+  assert.deepEqual(namen(erg), ['Al Masri|Tarek', 'Becker|Mia Sophie', 'Celik|Emre', 'van der Berg|Lotta']);
+});
+
+test('Nummerierungen, Datum, Geschlecht und Konfession werden entfernt', () => {
+  const erg = K.namenErkennen(K.ausEingefuegtemText('12) Becker, Mia 01.02.2015 w kath\n13. Dorn, Ben m\n14 Engel, Ida'));
+  assert.deepEqual(namen(erg), ['Becker|Mia', 'Dorn|Ben', 'Engel|Ida']);
+});
+
+test('Sonderzeichen und Bindestriche bleiben erhalten, GROSSSCHRIFT wird normalisiert', () => {
+  const erg = K.namenErkennen(K.ausEingefuegtemText('KARABEKTAŞOĞLU, Feyza\nMÜLLER-LÜDENSCHEIDT, Jörg\nØstergård, Søren'));
+  assert.deepEqual(namen(erg), ['Karabektaşoğlu|Feyza', 'Müller-Lüdenscheidt|Jörg', 'Østergård|Søren']);
+});
+
+test('Typische Erkennungsfehler werden bereinigt (| statt l, Satzzeichen am Rand)', () => {
+  const erg = K.namenErkennen(K.ausEingefuegtemText('"Mü|ler, Lea.\n_Adler, Tom;'));
+  assert.deepEqual(namen(erg), ['Müller|Lea', 'Adler|Tom']);
+});
+
+test('Senkrechte Striche einer Tabellenlinie trennen die Spalten', () => {
+  const erg = K.namenErkennen(K.ausEingefuegtemText('| Al Masri | Tarek |\n| Becker | Mia Sophie |'));
+  assert.deepEqual(namen(erg), ['Al Masri|Tarek', 'Becker|Mia Sophie']);
+});
+
+test('Schlecht lesbare Wörter markieren die Zeile als unsicher', () => {
+  const erg = K.namenErkennen(ocr(['Adler     Tom', 'Bauer     L1na', 'Christ    Anna'], { L1na: 30 }));
+  const lina = erg.kinder.find(k => k.nachname === 'Bauer');
+  assert.equal(lina.unsicher, true);
+  assert.match(lina.grund, /lesbar/);
+});
+
+test('Bereits vorhandene Kinder werden übersprungen, Duplikate zwischen zwei Fotos nur einmal übernommen', () => {
+  const seite1 = ocr(['Adler     Tom', 'Bauer     Lina']).zeilen;
+  const seite2 = ocr(['Bauer     Lina', 'Christ    Anna']).zeilen;
+  const erg = K.namenErkennen({ zeilen: [...seite1, ...seite2] }, { vorhandeneKinder: [{ vorname: 'Tom', nachname: 'Adler' }] });
+  assert.deepEqual(namen(erg), ['Bauer|Lina', 'Christ|Anna']);
+  assert.deepEqual(erg.uebersprungen, [{ vorname: 'Tom', nachname: 'Adler' }]);
+});
+
+test('Unbrauchbares Ergebnis liefert einen Hinweis', () => {
+  const foto = K.namenErkennen(ocr(['~~ ##', '12 34']));
+  assert.equal(foto.kinder.length, 0);
+  assert.match(foto.hinweis, /Foto/);
+  const text = K.namenErkennen(K.ausEingefuegtemText('   '));
+  assert.match(text.hinweis, /Text/);
+});
+
+test('Einzelner Name wird übernommen, aber als unsicher markiert', () => {
+  const erg = K.namenErkennen(K.ausEingefuegtemText('Adler, Tom\nMaximilian'));
+  const max = erg.kinder.find(k => k.nachname === 'Maximilian' || k.vorname === 'Maximilian');
+  assert.equal(max.unsicher, true);
+});
+
+test('ausTesseract versteht v5 (lines) und v6 (blocks)', () => {
+  const wort = (text, x0, conf = 90) => ({ text, confidence: conf, bbox: { x0, x1: x0 + 50, y0: 0, y1: 10 } });
+  const v5 = { lines: [{ words: [wort('Adler', 0), wort('Tom', 200)] }] };
+  const v6 = { blocks: [{ paragraphs: [{ lines: [{ words: [wort('Adler', 0), wort('Tom', 200)] }] }] }] };
+  for (const d of [v5, v6]) {
+    const t = K.ausTesseract(d);
+    assert.deepEqual(t.zeilen[0].woerter.map(w => [w.text, w.x0, w.sicherheit]), [['Adler', 0, 90], ['Tom', 200, 90]]);
+  }
+});
+
+// --- Klassenlisten mit Kästchen (Tabellenlinien) -------------------------------------------
+/** Graustufenbild (weiß) mit Hilfsfunktion zum Zeichnen schwarzer Rechtecke. */
+function bild(b, h) {
+  const px = new Uint8ClampedArray(b * h).fill(255);
+  const rechteck = (x, y, w, hh, wert = 0) => {
+    for (let yy = y; yy < y + hh; yy++) for (let xx = x; xx < x + w; xx++) if (xx >= 0 && yy >= 0 && xx < b && yy < h) px[yy * b + xx] = wert;
+  };
+  return { px, rechteck, b, h };
+}
+const schwarz = (bd, x, y) => bd[y * 600 + x] < 128;
+
+test('linienEntfernen löscht Tabellengitter, lässt aber Schrift stehen', () => {
+  const { px, rechteck, b, h } = bild(600, 400);
+  for (const y of [40, 100, 160, 220]) rechteck(0, y, 600, 3);        // waagerechte Linien
+  for (const x of [20, 300, 400, 500]) rechteck(x, 0, 3, 400);        // senkrechte Linien
+  rechteck(50, 60, 4, 30);   // „l“-Strich in einer Zeile
+  rechteck(60, 75, 15, 4);   // Querstrich eines Buchstabens
+  rechteck(80, 60, 30, 30, 0); rechteck(84, 64, 22, 22, 255); // „o“-artiger Ring
+  const out = K.linienEntfernen(px, b, h);
+  assert.ok(!schwarz(out, 150, 41) && !schwarz(out, 301, 300), 'Linien sind weg');
+  assert.ok(!schwarz(out, 301, 41), 'Kreuzungen sind weg');
+  assert.ok(schwarz(out, 51, 70) && schwarz(out, 65, 76) && schwarz(out, 81, 70), 'Schrift bleibt');
+});
+
+test('linienEntfernen erkennt auch leicht schräge Linien (Foto) und lässt dunkle Flächen stehen', () => {
+  const { px, rechteck, b, h } = bild(600, 400);
+  for (let x = 0; x < 600; x++) rechteck(x, 100 + Math.floor(x / 25), 1, 3);   // ca. 2,3° schräg
+  for (let y = 0; y < 400; y++) rechteck(200 + Math.floor(y / 30), y, 3, 1);
+  rechteck(400, 250, 150, 100);   // Schatten / dunkle Fläche
+  const out = K.linienEntfernen(px, b, h);
+  assert.ok(!schwarz(out, 100, 104) && !schwarz(out, 500, 121), 'schräge waagerechte Linie weg');
+  assert.ok(!schwarz(out, 203, 100) && !schwarz(out, 211, 350), 'schräge senkrechte Linie weg');
+  assert.ok(schwarz(out, 470, 300), 'dunkle Fläche bleibt');
+});
+
+test('Kästchen-Liste: Adresse, Druckdatum und Kästchenreste werden nicht zu Kindern', () => {
+  const erg = K.namenErkennen(K.ausEingefuegtemText([
+    'Städt. Kath. Hauptschule',
+    '45772 Musterstadt',
+    'Klasse 05b Klassenlehrer: Max Muster 2. Hj 2025/26',
+    'Anzahl der Schüler: 3',
+    '1. Al Masri, Tarek | | I LT | [ |',
+    '2. Becker, Mia-Sophie__ | | | [| |',
+    '3. Celik, Emre Can] | IL | 1 |',
+    'Druckdatum 10.02.2026 Klassenliste - Kaestchen + Anzahl.rtm'
+  ].join('\n')));
+  assert.deepEqual(namen(erg), ['Al Masri|Tarek', 'Becker|Mia-Sophie', 'Celik|Emre Can']);
+  assert.equal(erg.kursVorschlag, '05b');
+});
+
+// --- Lesebereich auf dem Foto wählen (Koordinaten 0–1 relativ zum Bild) -----------------------
+const nah = (a, b) => Object.keys(b).forEach(k => assert.ok(Math.abs(a[k] - b[k]) < 1e-9, `${k}: ${a[k]} ≠ ${b[k]}`));
+
+test('bereichAnpassen verschiebt den Rahmen, ohne das Bild zu verlassen', () => {
+  const r = { x: 0.2, y: 0.2, b: 0.5, h: 0.5 };
+  nah(K.bereichAnpassen(r, 'innen', 0.1, -0.05), { x: 0.3, y: 0.15, b: 0.5, h: 0.5 });
+  nah(K.bereichAnpassen(r, 'innen', 0.9, 0.9), { x: 0.5, y: 0.5, b: 0.5, h: 0.5 });
+  nah(K.bereichAnpassen(r, 'innen', -1, -1), { x: 0, y: 0, b: 0.5, h: 0.5 });
+});
+
+test('bereichAnpassen zieht Ecken und Kanten, mit Mindestgröße und Bildrand', () => {
+  const r = { x: 0.2, y: 0.2, b: 0.5, h: 0.5 };
+  nah(K.bereichAnpassen(r, 'se', 0.1, 0.1), { x: 0.2, y: 0.2, b: 0.6, h: 0.6 });
+  nah(K.bereichAnpassen(r, 'nw', -0.1, 0.1), { x: 0.1, y: 0.3, b: 0.6, h: 0.4 });
+  nah(K.bereichAnpassen(r, 'e', 0.5, 0.3), { x: 0.2, y: 0.2, b: 0.8, h: 0.5 });   // nur bis zum rechten Rand
+  nah(K.bereichAnpassen(r, 'n', 0, 0.9), { x: 0.2, y: 0.65, b: 0.5, h: 0.05 });   // Mindestgröße 5 %
+  nah(K.bereichAnpassen(r, 'w', -0.5, 0), { x: 0, y: 0.2, b: 0.7, h: 0.5 });
+});
+
+test('bereichAufziehen baut einen Rahmen aus zwei Punkten, egal in welche Richtung gezogen wird', () => {
+  nah(K.bereichAufziehen({ x: 0.6, y: 0.7 }, { x: 0.1, y: 0.2 }), { x: 0.1, y: 0.2, b: 0.5, h: 0.5 });
+  nah(K.bereichAufziehen({ x: 0.5, y: 0.5 }, { x: 1.4, y: -0.2 }), { x: 0.5, y: 0, b: 0.5, h: 0.5 });
+});
+
+test('bereichInPixeln rechnet auf ganze Bildpixel um und meldet „ganzes Bild“ als null', () => {
+  assert.deepEqual(K.bereichInPixeln({ x: 0.1, y: 0.25, b: 0.5, h: 0.5 }, 1000, 800), { x: 100, y: 200, b: 500, h: 400 });
+  assert.equal(K.bereichInPixeln(null, 1000, 800), null);
+  assert.equal(K.bereichInPixeln({ x: 0, y: 0, b: 1, h: 1 }, 1000, 800), null);
+});
