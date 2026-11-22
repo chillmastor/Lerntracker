@@ -150,3 +150,53 @@ test('ausTesseract versteht v5 (lines) und v6 (blocks)', () => {
     assert.deepEqual(t.zeilen[0].woerter.map(w => [w.text, w.x0, w.sicherheit]), [['Adler', 0, 90], ['Tom', 200, 90]]);
   }
 });
+
+// --- Klassenlisten mit Kästchen (Tabellenlinien) -------------------------------------------
+/** Graustufenbild (weiß) mit Hilfsfunktion zum Zeichnen schwarzer Rechtecke. */
+function bild(b, h) {
+  const px = new Uint8ClampedArray(b * h).fill(255);
+  const rechteck = (x, y, w, hh, wert = 0) => {
+    for (let yy = y; yy < y + hh; yy++) for (let xx = x; xx < x + w; xx++) if (xx >= 0 && yy >= 0 && xx < b && yy < h) px[yy * b + xx] = wert;
+  };
+  return { px, rechteck, b, h };
+}
+const schwarz = (bd, x, y) => bd[y * 600 + x] < 128;
+
+test('linienEntfernen löscht Tabellengitter, lässt aber Schrift stehen', () => {
+  const { px, rechteck, b, h } = bild(600, 400);
+  for (const y of [40, 100, 160, 220]) rechteck(0, y, 600, 3);        // waagerechte Linien
+  for (const x of [20, 300, 400, 500]) rechteck(x, 0, 3, 400);        // senkrechte Linien
+  rechteck(50, 60, 4, 30);   // „l“-Strich in einer Zeile
+  rechteck(60, 75, 15, 4);   // Querstrich eines Buchstabens
+  rechteck(80, 60, 30, 30, 0); rechteck(84, 64, 22, 22, 255); // „o“-artiger Ring
+  const out = K.linienEntfernen(px, b, h);
+  assert.ok(!schwarz(out, 150, 41) && !schwarz(out, 301, 300), 'Linien sind weg');
+  assert.ok(!schwarz(out, 301, 41), 'Kreuzungen sind weg');
+  assert.ok(schwarz(out, 51, 70) && schwarz(out, 65, 76) && schwarz(out, 81, 70), 'Schrift bleibt');
+});
+
+test('linienEntfernen erkennt auch leicht schräge Linien (Foto) und lässt dunkle Flächen stehen', () => {
+  const { px, rechteck, b, h } = bild(600, 400);
+  for (let x = 0; x < 600; x++) rechteck(x, 100 + Math.floor(x / 25), 1, 3);   // ca. 2,3° schräg
+  for (let y = 0; y < 400; y++) rechteck(200 + Math.floor(y / 30), y, 3, 1);
+  rechteck(400, 250, 150, 100);   // Schatten / dunkle Fläche
+  const out = K.linienEntfernen(px, b, h);
+  assert.ok(!schwarz(out, 100, 104) && !schwarz(out, 500, 121), 'schräge waagerechte Linie weg');
+  assert.ok(!schwarz(out, 203, 100) && !schwarz(out, 211, 350), 'schräge senkrechte Linie weg');
+  assert.ok(schwarz(out, 470, 300), 'dunkle Fläche bleibt');
+});
+
+test('Kästchen-Liste: Adresse, Druckdatum und Kästchenreste werden nicht zu Kindern', () => {
+  const erg = K.namenErkennen(K.ausEingefuegtemText([
+    'Städt. Kath. Hauptschule',
+    '45772 Musterstadt',
+    'Klasse 05b Klassenlehrer: Max Muster 2. Hj 2025/26',
+    'Anzahl der Schüler: 3',
+    '1. Al Masri, Tarek | | I LT | [ |',
+    '2. Becker, Mia-Sophie__ | | | [| |',
+    '3. Celik, Emre Can] | IL | 1 |',
+    'Druckdatum 10.02.2026 Klassenliste - Kaestchen + Anzahl.rtm'
+  ].join('\n')));
+  assert.deepEqual(namen(erg), ['Al Masri|Tarek', 'Becker|Mia-Sophie', 'Celik|Emre Can']);
+  assert.equal(erg.kursVorschlag, '05b');
+});

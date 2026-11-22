@@ -908,7 +908,7 @@
           <p class="font-semibold text-slate-800">Noten in die Notenliste übertragen & Kinder per Foto anlegen</p>
           <ul class="list-disc list-inside text-slate-600 space-y-0.5 leading-relaxed text-[11px]">
             <li><strong>Noten in Notenliste übertragen:</strong> Überträgt die Noten eines Kurses direkt in die Excel-Notenliste des Klassenlehrers. Tab und Fachspalte werden vorgeschlagen und von dir bestätigt, Tippfehler in Namen werden erkannt und nachgefragt, bereits belegte Zellen nie ungefragt überschrieben. Formatierung und Formeln der Liste bleiben erhalten.</li>
-            <li><strong>Kinder per Foto anlegen:</strong> Klassenliste fotografieren, und die Namen landen als vorausgefüllte Zeilen im Dialog „Kinder hinzufügen“. Unsichere Zeilen sind gelb markiert. Die Texterkennung läuft vollständig auf dem Gerät und funktioniert nach dem ersten Mal auch offline.</li>
+            <li><strong>Kinder per Foto anlegen:</strong> Klassenliste fotografieren, und die Namen landen als vorausgefüllte Zeilen im Dialog „Kinder hinzufügen“. Unsichere Zeilen sind gelb markiert. Die Texterkennung läuft vollständig auf dem Gerät und funktioniert nach dem ersten Mal auch offline. Listen mit Kästchen oder Tabellenlinien werden vor dem Lesen von den Linien befreit.</li>
             <li><strong>Text einfügen:</strong> Namenslisten aus E-Mails, Excel oder der iPad-Funktion „Live Text“ einfügen und automatisch in Vor- und Nachnamen zerlegen lassen.</li>
           </ul>
         </div>
@@ -5837,9 +5837,14 @@
       summe = 0;
       for (let g = 255; g >= 0; g--) { summe += hist[g]; if (summe > pixel * 0.02) { hi = g; break; } }
       const spanne = Math.max(1, hi - lo);
-      for (let i = 0; i < d.length; i += 4) {
-        const v = Math.max(0, Math.min(255, ((d[i] - lo) * 255) / spanne));
-        d[i] = d[i + 1] = d[i + 2] = v;
+      const grau = new Uint8ClampedArray(pixel);
+      for (let i = 0, p = 0; i < d.length; i += 4, p++) {
+        grau[p] = Math.max(0, Math.min(255, ((d[i] - lo) * 255) / spanne));
+      }
+      // Kästchen- und Tabellenlinien entfernen, sonst liest die Erkennung sie als Buchstaben
+      const ohneLinien = Klassenliste.linienEntfernen(grau, cv.width, cv.height);
+      for (let i = 0, p = 0; i < d.length; i += 4, p++) {
+        d[i] = d[i + 1] = d[i + 2] = ohneLinien[p];
       }
       ctx.putImageData(img, 0, 0);
       return cv;
